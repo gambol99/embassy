@@ -19,7 +19,7 @@ package services
 import (
 	"errors"
 
-	"embassy/config"
+	"github.com/gambol99/embassy/config"
 	"github.com/golang/glog"
 )
 
