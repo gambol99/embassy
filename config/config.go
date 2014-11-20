@@ -27,7 +27,7 @@ var (
 )
 
 func init() {
-	socket = flag.String("docker", "unix://var/run/docker.socket", "the location of the docker socket")
+	socket = flag.String("docker", "unix://var/run/docker.sock", "the location of the docker socket")
 	discovery = flag.String("discovery", "etcd://localhost:4001", "the discovery backend to pull the services from")
 	iface = flag.String("interface", "eth0", "the interface to take the proxy address from")
 }
@@ -51,6 +51,7 @@ type Configuration struct {
 	DiscoveryURI  string
 	FixedBackend  string
 	BackendPrefix string
+	Interface     string
 }
 
 func (s Configuration) GetDiscoveryURI() *url.URL {
@@ -74,6 +75,7 @@ func NewConfiguration() *Configuration {
 	configuration.DiscoveryURI = *discovery
 	configuration.DockerSocket = *socket
 	configuration.BackendPrefix = "BACKEND_"
+	configuration.Interface = *iface
 	configuration.FixedBackend = ""
 	/* step: check if the command line has a fixed backend */
 	if length := len(os.Args); length == 2 {

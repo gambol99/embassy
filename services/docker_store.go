@@ -45,18 +45,19 @@ type DockerServiceStore struct {
 
 func NewDockerServiceStore(config *config.Configuration, channel ServiceStoreChannel) (ServiceStore, error) {
 	/* step: we create a docker client */
+	glog.V(3).Infof("Creating docker client api, socket: %s", config.DockerSocket)
 	if client, err := docker.NewClient(config.DockerSocket); err != nil {
 		glog.Errorf("Unable to create a docker client, error: %s", err)
 		return nil, err
 	} else {
 		/* step: we need the ip address of the proxy */
-		if ipaddress, err := utils.GetLocalIPAddress("eth0"); err != nil {
+		if ipaddress, err := utils.GetLocalIPAddress(config.Interface); err != nil {
 			glog.Errorf("Unable to get the ip address of the proxy, error: %s", err)
 			return nil, err
 		} else {
+			glog.V(5).Infof("Proxy ip address: %s, interface: %s", ipaddress, config.Interface)
 			/* step: create the service provider */
 			service := &DockerServiceStore{client, ipaddress, config, nil, channel}
-
 			/* step: kick off the discovery loop */
 			if err := service.DiscoverServices(); err != nil {
 				glog.Errorf("Unable to start the docker discovery loop, error: %s", err)
@@ -67,22 +68,25 @@ func NewDockerServiceStore(config *config.Configuration, channel ServiceStoreCha
 	}
 }
 
-func (r DockerServiceStore) DiscoverServices() error {
+func (r *DockerServiceStore) DiscoverServices() error {
 	glog.V(1).Info("Starting the docker backend service discovery stream")
 	if err := r.AddDockerEventListener(); err != nil {
+		glog.Errorf("Unable to add our docker client as an event listener, error:", err)
 		return err
 	}
 	/* step: create a goroutine to listen to the events */
-	go func() {
-		for {
-			event := <-r.Events
+	go func(docker *DockerServiceStore) {
+		glog.V(4).Infof("Entering into the docker events loop")
+		for event := range docker.Events {
+			glog.V(5).Infof("Received docker event: %s passing to handler", event)
 			r.DockerEventUpdate(event.Status, event.ID)
+			glog.V(5).Infof("Looping around for next event")
 		}
-	}()
+	}(r)
 	return nil
 }
 
-func (r DockerServiceStore) DockerEventUpdate(eventType, containerId string) (err error) {
+func (r *DockerServiceStore) DockerEventUpdate(eventType, containerId string) (err error) {
 	glog.V(2).Infof("Recieved docker event, status: %s, container: %s", eventType, containerId)
 	switch eventType {
 	case DOCKER_EVENT_START:
@@ -109,13 +113,15 @@ func (r DockerServiceStore) DockerEventUpdate(eventType, containerId string) (er
 }
 
 func (r *DockerServiceStore) AddDockerEventListener() (err error) {
+	glog.V(5).Infof("Adding the docker event listen to our channel")
 	/* step: create a channel for docker events */
-	r.Events = make(chan *docker.APIEvents)
+	r.Events = make(DockerEventsChannel)
 	/* step: add our channel as an event listener for docker events */
 	if err = r.Docker.AddEventListener(r.Events); err != nil {
-		glog.Error("Unable to register docker events listener, error: %s", err)
+		glog.Errorf("Unable to register docker events listener, error: %s", err)
 		return
 	}
+	glog.V(5).Infof("Successfully added the docker event handler")
 	return
 }
 
@@ -129,22 +135,30 @@ func (r DockerServiceStore) InspectContainerServices(containerId string) (defini
 		} else {
 			/* check: is the container associated to ourself */
 			if ipaddress != r.Address {
-				glog.Infof("The container: %s is not linked to proxy, refusing to inspect services", containerId)
-				return definitions, nil
+				//glog.Infof("The container: %s is not linked to proxy, refusing to inspect services", containerId)
+				//return definitions, nil
 			}
 			glog.V(3).Infof("container: %s linked to proxy, inspecting the services", containerId)
 			if environment, err := ContainerEnvironment(container.Config.Env); err == nil {
 				/* step; scan the runtime variables for backend links */
 				for key, value := range environment {
+					glog.V(5).Infof("Runtime vars, key: %s value: %s", key, value)
 					if r.IsBackendService(key, value) {
+						glog.V(2).Infof("Found backend request in container: %s, service: %s", containerId, value)
 						/* step: create a backend defintion, validate and convert to service definition */
 						var definition BackendDefiniton
 						definition.Name = key
 						definition.Definition = value
 						/* check: is the definition valid */
-						if service, err := definition.GetService(); err == nil {
-							definitions = append(definitions, service)
+						service, err := definition.GetService()
+						if err != nil {
+							glog.Errorf("Invalid service definition, error: %s", err)
+							continue
 						}
+						/* step: else we add to the list */
+						definitions = append(definitions, service)
+					} else {
+						glog.V(6).Infof("Runtime; %s = %s is not a backend service request", key, value)
 					}
 					if err != nil {
 						glog.Errorf("Invalid service definition found in container: %s, service: %s, error: %s", containerId, value, err)

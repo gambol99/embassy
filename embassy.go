@@ -36,8 +36,9 @@ func CreateProxy(request services.Service) (*proxy.ProxyService, error) {
 
 func main() {
 	flag.Parse()
-
 	configuration := config.NewConfiguration()
+	glog.Infof("Loading the configuration: %v", configuration)
+
 	/* step: validate the service configuration */
 	if err := configuration.ValidConfiguration(); err != nil {
 		glog.Fatalf("Invalid service configuration, error: %s", configuration.ValidConfiguration())
@@ -45,7 +46,7 @@ func main() {
 
 	/* step: create a backend service provider */
 	serviceUpdates := make(services.ServiceStoreChannel, 3)
-	if _, err := services.NewServiceStore(configuration, serviceUpdates); err != nil {
+	if service_store, err := services.NewServiceStore(configuration, serviceUpdates); err != nil {
 		glog.Fatalf("Unable to create the backend request service, error: %s", err)
 	} else {
 		/* step: we listen out for backend service requests and create a proxy on them */
@@ -59,6 +60,7 @@ func main() {
 			} else {
 				glog.Errorf("%s: we need to create new proxy for service: %s", config.ProgName(), backendRequest)
 				var _ = proxy
+				var _ = service_store
 			}
 		}
 	}

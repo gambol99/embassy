@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
+	//"github.com/golang/glog"
 )
 
 /*
@@ -38,18 +38,15 @@ type BackendDefiniton struct {
 }
 
 var (
-	BD_DEFINITION    = `^[[:alnum:]\.-]*(;|\[([[:alnum:],]){1,}\]);[0-9]{1,5}\/(tcp|udp)(;?$|;((.*)=(.*)){1,}$)`
+	BD_DEFINITION    = regexp.MustCompile(`^[[:alnum:]\.-]*(\[[[:alnum:],]+\])?;[0-9]+\/(tcp|udp)(;((.*)=(.*)){1,})?;?`)
 	BD_SERVICE_NAME  = regexp.MustCompile(`(^[[:alnum:]\.-]*)`)
 	BD_SERVICE_PORT  = regexp.MustCompile(`([0-9]+)`)
 	BD_SERVICE_PROTO = regexp.MustCompile(`\/(tcp|udp)`)
 	BD_SERVICE_TAGS  = regexp.MustCompile(`\[(.*)\]`)
 )
 
-func (b BackendDefiniton) IsValid() (matched bool, err error) {
-	if matched, err := regexp.MatchString(BD_DEFINITION, b.Definition); err != nil && matched {
-		glog.Fatalf("Error in the backend service defintion regex, error: %s", err)
-	}
-	return
+func (b BackendDefiniton) IsValid() (matched bool) {
+	return BD_DEFINITION.MatchString(b.Definition)
 }
 
 func (b BackendDefiniton) GetSection() func(int) string {
@@ -60,7 +57,7 @@ func (b BackendDefiniton) GetSection() func(int) string {
 }
 
 func (b BackendDefiniton) GetService() (service Service, err error) {
-	if matched, _ := b.IsValid(); matched {
+	if matched := b.IsValid(); matched {
 		var Section func(int) string = b.GetSection()
 		service_name := Section(0)
 		service.ID = ServiceID(b.Definition)

@@ -17,12 +17,14 @@ limitations under the License.
 package proxy
 
 import (
+	"errors"
+
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
 type LoadBalancerRR struct {
-	LastEndpoint services.Endpoint
+	LastIndex int
 }
 
 func NewLoadBalancerRR() LoadBalancer {
@@ -31,9 +33,20 @@ func NewLoadBalancerRR() LoadBalancer {
 
 func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (services.Endpoint, error) {
 	glog.V(3).Infof("Load (RR): selecting endpoint service: %s", service)
-	return "", nil
+	if len(endpoints) <= 0 {
+		return "", errors.New("The service does not have any endpoints")
+	} else {
+		lb.LastIndex++
+		if lb.LastIndex > len(endpoints) {
+			lb.LastIndex = 0 // reset the index to the begining
+		}
+		return endpoints[lb.LastIndex], nil
+	}
 }
 
 func (lb *LoadBalancerRR) UpdateEndpoints(service *services.Service, endpoints []services.Endpoint) {
 	glog.V(2).Infof("lb (rr) : updating the endpoints")
+	if len(endpoints) > 0 {
+		lb.LastIndex = 0
+	}
 }

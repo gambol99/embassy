@@ -31,6 +31,7 @@ type ServiceStore interface {
 
 func NewServiceStore(config *config.Configuration, channel ServiceStoreChannel) (ServiceStore, error) {
 	/* step: has the backend been hardcoded on the command line, if so we use a fixed backend service */
+	glog.V(5).Infof("Creating services store, configuration: %V", config)
 	if config.IsFixedBackend() {
 		glog.V(1).Infof("Using Fixed Backend service: %s", config.FixedBackend)
 		return nil, errors.New("Fixed Backend service is not presently supported")

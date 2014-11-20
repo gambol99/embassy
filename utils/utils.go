@@ -19,6 +19,7 @@ package utils
 import (
 	"errors"
 	"net"
+	"strings"
 
 	"github.com/golang/glog"
 )
@@ -28,6 +29,7 @@ const (
 )
 
 func GetLocalIPAddress(interface_name string) (string, error) {
+	glog.V(5).Infof("Attempting to grab the ipaddress of interface: %s", interface_name)
 	if interface_name == "" {
 		interface_name = PROXY_INTERFACE
 	}
@@ -36,18 +38,20 @@ func GetLocalIPAddress(interface_name string) (string, error) {
 		return "", err
 	} else {
 		for _, iface := range interfaces {
+			glog.V(5).Infof("Pulling the ip addresses, interface: %s", iface.Name)
 			/* step: get only the interface we're interested in */
 			if iface.Name == interface_name {
-				if addrs, err := iface.Addrs(); err != nil {
+				glog.V(6).Infof("Found interface: %s, grabbing the ip addresses", iface.Name)
+				addrs, err := iface.Addrs()
+				if err != nil {
 					glog.Errorf("Unable to retrieve the ip addresses on interface: %s, error: %s", iface.Name, err)
 					return "", err
+				}
+				/* step: return the first address */
+				if len(addrs) > 0 {
+					return strings.SplitN(addrs[0].String(), "/", 2)[0], nil
 				} else {
-					for _, address := range addrs {
-						switch address.(type) {
-						case *net.IPAddr:
-							return address.String(), nil
-						}
-					}
+					glog.Fatalf("The interface: %s has no ip address", interface_name)
 				}
 			}
 		}
