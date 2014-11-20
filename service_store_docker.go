@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/fsouza/go-dockerclient"
-	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
