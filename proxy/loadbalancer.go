@@ -24,7 +24,7 @@ import (
 
 type LoadBalancer interface {
 	/* select a endpoint for this service */
-	SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (*services.Endpoint, error)
+	SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (services.Endpoint, error)
 	/* update the endpoints */
 	UpdateEndpoints(service *services.Service, endpoints []services.Endpoint)
 }

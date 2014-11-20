@@ -67,14 +67,14 @@ func NewProxyService(config *config.Configuration, service services.Service) (Pr
 func NewProxySocket(protocol services.ServiceProtocol, port int) (ProxySocket, error) {
 	switch protocol {
 	case services.TCP:
-		listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+		listener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(port))
 		if err != nil {
 			glog.Errorf("Unable to create a TCP proxy socket, error: %s", err)
 			return nil, err
 		}
 		return &TCPProxySocket{listener}, nil
 	case services.UDP:
-		addr, err := net.ResolveUDPAddr("udp", ":"+strconv.Itoa(port))
+		addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:"+strconv.Itoa(port))
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +103,7 @@ func TryConnect(service *services.Service, lb LoadBalancer, ds discovery.Discove
 		}
 		glog.V(3).Infof("Proxying service %s to endpoint %s", service, endpoint)
 		/* step: attempt to connect to the backend */
-		outConn, err := net.DialTimeout(service.ProtocolName(), endpoint.Address.String(), retryTimeout*time.Second)
+		outConn, err := net.DialTimeout(service.ProtocolName(), string(endpoint), retryTimeout*time.Second)
 		if err != nil {
 			glog.Errorf("Dial failed: %v", err)
 			continue

@@ -17,28 +17,23 @@ limitations under the License.
 package proxy
 
 import (
-	"sync"
-
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
 type LoadBalancerRR struct {
-	sync.RWMutex
-	LastEndpoint int
+	LastEndpoint services.Endpoint
 }
 
 func NewLoadBalancerRR() LoadBalancer {
 	return &LoadBalancerRR{}
 }
 
-func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (*services.Endpoint, error) {
+func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (services.Endpoint, error) {
 	glog.V(3).Infof("Load (RR): selecting endpoint service: %s", service)
-	return nil, nil
+	return "", nil
 }
 
 func (lb *LoadBalancerRR) UpdateEndpoints(service *services.Service, endpoints []services.Endpoint) {
-	lb.Lock()
-	defer lb.Unlock()
 	glog.V(2).Infof("lb (rr) : updating the endpoints")
 }

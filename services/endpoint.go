@@ -16,19 +16,4 @@ limitations under the License.
 
 package services
 
-import (
-	"fmt"
-	"net"
-)
-
-type EndpointID string
-
-type Endpoint struct {
-	ID      EndpointID
-	Address net.Addr
-	Port    int
-}
-
-func (s Endpoint) String() string {
-	return fmt.Sprintf("id: %s, address: %s, port: %d", s.ID, s.Address, s.Port)
-}
+type Endpoint string

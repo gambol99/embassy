@@ -31,19 +31,19 @@ func (count *ConnectionCount) Decrement() {
 }
 
 type LoadBalancerLC struct {
-	Connections map[services.EndpointID]ConnectionCount
+	Connections map[services.Endpoint]ConnectionCount
 }
 
 func NewLeastConnections() LoadBalancer {
 	balancer := new(LoadBalancerLC)
-	balancer.Connections = make(map[services.EndpointID]ConnectionCount, 0)
+	balancer.Connections = make(map[services.Endpoint]ConnectionCount, 0)
 	return balancer
 }
 
-func (r *LoadBalancerLC) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (*services.Endpoint, error) {
+func (r *LoadBalancerLC) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (services.Endpoint, error) {
 	glog.V(3).Infof("Load (LC): selecting endpoint service: %s", service)
 
-	return nil, nil
+	return "", nil
 }
 
 func (lb *LoadBalancerLC) UpdateEndpoints(service *services.Service, endpoints []services.Endpoint) {

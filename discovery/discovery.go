@@ -40,10 +40,10 @@ type DiscoveryStore interface {
 
 type DiscoveryStoreService struct {
 	sync.RWMutex
-	Service      services.Service
-	Store        DiscoveryStoreProvider
-	Config       *config.Configuration
-	EndpointsMap map[services.EndpointID]services.Endpoint
+	Service   services.Service
+	Store     DiscoveryStoreProvider
+	Config    *config.Configuration
+	Endpoints []services.Endpoint
 }
 
 type DiscoveryStoreProvider interface {
@@ -62,7 +62,7 @@ func NewDiscoveryService(config *config.Configuration, si services.Service) (Dis
 	discovery := new(DiscoveryStoreService)
 	discovery.Service = si
 	discovery.Config = config
-	discovery.EndpointsMap = make(map[services.EndpointID]services.Endpoint, 0)
+	discovery.Endpoints = make([]services.Endpoint, 0)
 
 	/* step: create the backend provioder */
 	switch config.DiscoveryURI {
@@ -85,11 +85,7 @@ func (ds *DiscoveryStoreService) ListEndpoints() (endpoints []services.Endpoint,
 	/* step: pull a list of paths from the backend */
 	ds.RLock()
 	defer ds.RUnlock()
-	endpoints = make([]services.Endpoint, len(ds.EndpointsMap))
-	for _, endpoint := range ds.EndpointsMap {
-		endpoints = append(endpoints, endpoint)
-	}
-	return
+	return ds.Endpoints, nil
 }
 
 func (ds *DiscoveryStoreService) Synchronize(service *services.Service) error {
@@ -102,19 +98,8 @@ func (ds *DiscoveryStoreService) Synchronize(service *services.Service) error {
 		return errors.New("Failed to resync the endpoints")
 	}
 	/* step: we register any new endpoints - using the endpoint id as key into the map */
-	registeredEndpoints := make(map[services.EndpointID]bool)
-	for _, endpoint := range endpoints {
-		registeredEndpoints[endpoint.ID] = true
-		if _, found := ds.EndpointsMap[endpoint.ID]; !found {
-			ds.EndpointsMap[endpoint.ID] = endpoint
-		}
-	}
-	/* step: we remove anything that should no longer be there */
-	for id, _ := range ds.EndpointsMap {
-		if _, exists := registeredEndpoints[id]; !exists {
-			delete(ds.EndpointsMap, id)
-		}
-	}
+	ds.Endpoints = endpoints
+	glog.V(4).Infof("Updating the endpoints for service: %s", service)
 	return nil
 }
 
