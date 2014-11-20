@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package services
 
 import (
 	"errors"
@@ -49,7 +49,7 @@ func NewDockerServiceStore(channel ServiceStoreChannel) (ServiceStore, error) {
 		return nil, err
 	} else {
 		/* step: we need the ip address of the proxy */
-		if ipaddress, err := GetLocalIPAddress("eth0"); err != nil {
+		if ipaddress, err := utils.GetLocalIPAddress("eth0"); err != nil {
 			glog.Errorf("Unable to get the ip address of the proxy, error: %s", err)
 			return nil, err
 		} else {

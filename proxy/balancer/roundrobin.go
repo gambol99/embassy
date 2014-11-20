@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package balancer
 
 import (
 	"sync"
 
+	"github.com/gambol99/embassy"
+	"github.com/gambol99/embassy/proxy/loadbalancer"
 	"github.com/golang/glog"
 )
 

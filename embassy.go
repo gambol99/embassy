@@ -20,15 +20,16 @@ import (
 	"errors"
 	"flag"
 
+	"github.com/gambol99/embassy/proxy"
 	"github.com/golang/glog"
 )
 
-func ProxyServiceLookup(request Service) (*ProxyService, bool) {
+func ProxyServiceLookup(request Service) (*proxy.ProxyService, bool) {
 
 	return nil, false
 }
 
-func CreateProxy(request Service) (*ProxyService, error) {
+func CreateProxy(request Service) (*proxy.ProxyService, error) {
 
 	return nil, errors.New("Unable to create proxy")
 }
