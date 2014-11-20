@@ -18,10 +18,8 @@ package services
 
 import (
 	"errors"
-	"os"
 
 	"github.com/gambol99/embassy/config"
-	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
@@ -42,10 +40,11 @@ func NewFixedServiceStore(config *config.Configuration, channel ServiceStoreChan
 		glog.Errorf("The fixed backend is invalid, error: %s")
 		return nil, errors.New("The fixed backend definition is invalid, please check")
 	}
-	return &FixebBackendStore{service, channel}
+	return &FixebBackendStore{service, channel}, nil
 }
 
 func (fx *FixebBackendStore) DiscoverServices() error {
 	glog.V(5).Infof("Pushing the fixed backend into channel")
 	fx.Channel <- fx.Service
+	return nil
 }

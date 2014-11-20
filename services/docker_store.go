@@ -17,6 +17,7 @@ package services
 
 import (
 	"errors"
+	"os"
 	"regexp"
 	"strings"
 
@@ -46,6 +47,12 @@ type DockerServiceStore struct {
 func NewDockerServiceStore(config *config.Configuration, channel ServiceStoreChannel) (ServiceStore, error) {
 	/* step: we create a docker client */
 	glog.V(3).Infof("Creating docker client api, socket: %s", config.DockerSocket)
+
+	/* step: validate the socket */
+	if err := ValidateDockerSocket(config.DockerSocket); err != nil {
+		return nil, err
+	}
+
 	if client, err := docker.NewClient(config.DockerSocket); err != nil {
 		glog.Errorf("Unable to create a docker client, error: %s", err)
 		return nil, err
@@ -57,7 +64,7 @@ func NewDockerServiceStore(config *config.Configuration, channel ServiceStoreCha
 		} else {
 			glog.V(5).Infof("Proxy ip address: %s, interface: %s", ipaddress, config.Interface)
 			/* step: create the service provider */
-			return &DockerServiceStore{client, ipaddress, config, nil, channel}
+			return &DockerServiceStore{client, ipaddress, config, nil, channel}, nil
 		}
 	}
 }
@@ -167,6 +174,26 @@ func (r DockerServiceStore) InspectContainerServices(containerId string) (defini
 func (r DockerServiceStore) IsBackendService(key, value string) (found bool) {
 	found, _ = regexp.MatchString(r.Config.BackendPrefix, key)
 	return
+}
+
+func ValidateDockerSocket(socket string) error {
+	glog.V(5).Infof("Validating the docker socket: %s", socket)
+	if match, _ := regexp.MatchString("^unix://", socket); !match {
+		glog.Errorf("The docker socket: %s should start with unix://", socket)
+		return errors.New("Invalid docker socket")
+	}
+	filename = strings.TrimPrefix("unix://", socket)
+	filestat, err := os.Stat(filename)
+	if err == nil {
+		glog.Errorf("The docker socket: %s does not exists", socket)
+		return errors.New("The docker socket does not exist")
+	}
+	/* check its a socket */
+	if !filestat & os.ModeSocket {
+		glog.Errorf("The docker socket: %s is not a unix socket, please check", socket)
+		return errors.New("The docker socket is not a named unix socket")
+	}
+	return nil
 }
 
 func GetDockerIPAddress(container *docker.Container) (string, error) {

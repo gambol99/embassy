@@ -23,13 +23,14 @@ import (
 )
 
 var (
-	socket, discovery, iface *string
+	socket, discovery, iface, fixed *string
 )
 
 func init() {
 	socket = flag.String("docker", "unix://var/run/docker.sock", "the location of the docker socket")
 	discovery = flag.String("discovery", "etcd://localhost:4001", "the discovery backend to pull the services from")
 	iface = flag.String("interface", "eth0", "the interface to take the proxy address from")
+	fixed = flag.String("backend", "", "allow you specifiy a fixed backend service")
 }
 
 type ServiceOptions map[string]string
@@ -59,13 +60,6 @@ func (s Configuration) GetDiscoveryURI() *url.URL {
 	return uri
 }
 
-func (s Configuration) IsFixedBackend() bool {
-	if s.FixedBackend == "" {
-		return false
-	}
-	return true
-}
-
 func (s Configuration) ValidConfiguration() error {
 	return nil
 }
@@ -76,7 +70,7 @@ func NewConfiguration() *Configuration {
 	configuration.DockerSocket = *socket
 	configuration.BackendPrefix = "BACKEND_"
 	configuration.Interface = *iface
-	configuration.FixedBackend = ""
+	configuration.FixedBackend = *fixed
 	/* step: check if the command line has a fixed backend */
 	if length := len(os.Args); length == 2 {
 		configuration.FixedBackend = os.Args[1]
