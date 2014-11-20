@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gambol99/embassy/discovery"
-	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 

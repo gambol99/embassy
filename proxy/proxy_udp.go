@@ -20,7 +20,6 @@ import (
 	"net"
 
 	"github.com/gambol99/embassy/discovery"
-	"github.com/gambol99/embassy/services"
 )
 
 type UDPProxySocket struct {

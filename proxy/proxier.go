@@ -19,7 +19,6 @@ package proxy
 import (
 	"net"
 
-	"github.com/gambol99/embassy"
 	"github.com/golang/glog"
 )
 
