@@ -40,16 +40,16 @@ type DiscoveryStore interface {
 }
 
 type DiscoveryStoreService struct {
-	Service Service
+	Service services.Service
 	Store   DiscoveryStoreProvider
 }
 
 type DiscoveryStoreProvider interface {
-	List(Service) ([]ServiceEndpoint, error)
+	List(Service) ([]services.ServiceEndpoint, error)
 	Watch(Service)
 }
 
-func NewDiscoveryService(service Service) (DiscoveryStore, error) {
+func NewDiscoveryService(service services.Service) (DiscoveryStore, error) {
 	/* step: check if the store provider is supported */
 	if !IsDiscoveryStore(config.DiscoveryURI) {
 		return nil, errors.New("The backend discovery store specified is not supported")
@@ -68,7 +68,7 @@ func NewDiscoveryService(service Service) (DiscoveryStore, error) {
 	return discovery, nil
 }
 
-func (d DiscoveryStoreService) ListEndpoints() ([]ServiceEndpoint, error) {
+func (d DiscoveryStoreService) ListEndpoints() ([]services.ServiceEndpoint, error) {
 	/* step: pull a list of paths from the backend */
 	if endpoints, _ := d.Store.List(d.Service); len(endpoints) <= 0 {
 		glog.V(2).Infof("We have no endpoints avaible for service: %s", d.Service)

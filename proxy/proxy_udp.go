@@ -18,8 +18,6 @@ package proxy
 
 import (
 	"net"
-
-	"github.com/gambol99/embassy/discovery"
 )
 
 type UDPProxySocket struct {

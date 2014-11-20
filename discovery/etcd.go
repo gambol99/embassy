@@ -39,8 +39,8 @@ func NewEtcdDiscoveryService() (DiscoveryStoreProvider, error) {
 	}
 }
 
-func (etcd *EtcdDiscoveryService) List(service Service) ([]ServiceEndpoint, error) {
-	list := make([]ServiceEndpoint, 0)
+func (etcd *EtcdDiscoveryService) List(service services.Service) ([]services.ServiceEndpoint, error) {
+	list := make([]services.ServiceEndpoint, 0)
 	/*
 		if resp, err := etcd.client.Get(path, false, true); err != nil {
 			glog.Error("etcd:", err)
@@ -60,7 +60,7 @@ func (etcd *EtcdDiscoveryService) List(service Service) ([]ServiceEndpoint, erro
 	return list, nil
 }
 
-func (etcd *EtcdDiscoveryService) Watch(service Service) {
+func (etcd *EtcdDiscoveryService) Watch(service services.Service) {
 	/*
 		if resp, err := etcd.client.Watch(path, s.waitIndex, true, nil, nil); err != nil {
 			glog.Error("etcd:", err)
