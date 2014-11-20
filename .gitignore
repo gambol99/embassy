@@ -1,0 +1,30 @@
+#
+#   Author: Rohith
+#   Date: 2014-11-19 22:54:02 +0000 (Wed, 19 Nov 2014)
+#
+#  vim:ts=2:sw=2:et
+#
+# Compiled Object files, Static and Dynamic libs (Shared Objects)
+*.o
+*.a
+*.so
+embassy
+
+# Folders
+_obj
+_test
+
+# Architecture specific extensions/prefixes
+*.[568vq]
+[568vq].out
+
+*.cgo1.go
+*.cgo2.c
+_cgo_defun.c
+_cgo_gotypes.go
+_cgo_export.*
+
+_testmain.go
+
+*.exe
+*.test
