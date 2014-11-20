@@ -18,6 +18,8 @@ package discovery
 
 import (
 	"github.com/coreos/go-etcd/etcd"
+	"github.com/gambol99/embassy/config"
+	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
@@ -26,7 +28,7 @@ type EtcdDiscoveryService struct {
 	waitIndex uint64
 }
 
-func NewEtcdDiscoveryService() (DiscoveryStoreProvider, error) {
+func NewEtcdDiscoveryService(config *config.ServiceConfiguration) (DiscoveryStoreProvider, error) {
 	if uri, err := config.GetDiscoveryURI(); err != nil {
 		glog.Errorf("Unable to create the etcd client, backend: %s, error: %s", uri, err)
 		return nil, err

@@ -13,11 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package balancer
+package proxy
 
 import (
-	"github.com/gambol99/embassy"
-	"github.com/gambol99/embassy/proxy/loadbalancer"
+	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
@@ -32,21 +31,21 @@ func (count *ConnectionCount) Decrement() {
 }
 
 type LoadBalancerLC struct {
-	Connections map[ServiceEndpointID]ConnectionCount
+	Connections map[services.ServiceEndpointID]ConnectionCount
 }
 
 func NewLeastConnections() LoadBalancer {
 	balancer := new(LoadBalancerLC)
-	balancer.Connections = make(map[ServiceEndpointID]ConnectionCount, 0)
+	balancer.Connections = make(map[services.ServiceEndpointID]ConnectionCount, 0)
 	return balancer
 }
 
-func (r *LoadBalancerLC) SelectEndpoint(service *Service, endpoints []ServiceEndpoint) (*ServiceEndpoint, error) {
+func (r *LoadBalancerLC) SelectEndpoint(service *services.Service, endpoints []services.ServiceEndpoint) (*services.ServiceEndpoint, error) {
 	glog.V(3).Infof("Load (LC): selecting endpoint service: %s", service)
 
 	return nil, nil
 }
 
-func (lb *LoadBalancerLC) UpdateEndpoints(service *Service, endpoints []ServiceEndpoint) {
+func (lb *LoadBalancerLC) UpdateEndpoints(service *services.Service, endpoints []services.ServiceEndpoint) {
 
 }

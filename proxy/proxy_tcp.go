@@ -20,6 +20,8 @@ import (
 	"net"
 	"sync"
 
+	"github.com/gambol99/embassy/discovery"
+	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
@@ -27,7 +29,7 @@ type TCPProxySocket struct {
 	net.Listener
 }
 
-func (tcp *TCPProxySocket) ProxyService(service *Service, balancer LoadBalancer, discovery DiscoveryStore) error {
+func (tcp *TCPProxySocket) ProxyService(service *services.Service, balancer LoadBalancer, discovery discovery.DiscoveryStore) error {
 	for {
 		/* wait for a connection */
 		connection, err := tcp.Accept()
@@ -41,7 +43,7 @@ func (tcp *TCPProxySocket) ProxyService(service *Service, balancer LoadBalancer,
 	}
 }
 
-func (p *TCPProxySocket) HandleTCPConnection(service *Service, inConn net.Conn, balancer LoadBalancer, discovery DiscoveryStore) error {
+func (p *TCPProxySocket) HandleTCPConnection(service *services.Service, inConn net.Conn, balancer LoadBalancer, discovery discovery.DiscoveryStore) error {
 	/* step: we try and connect to a backend */
 	outConn, err := TryConnect(service, balancer, discovery)
 	defer inConn.Close()

@@ -25,16 +25,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/discovery"
+	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
 var endpointDialTimeout = []time.Duration{1, 2, 4, 8}
 
-func NewProxyService(service Service) (ProxyService, error) {
+func NewProxyService(config *config.ServiceConfiguration, service services.Service) (ProxyService, error) {
 	proxy := new(Proxier)
 	/* step: create discovery channel for this service */
-	proxy.DiscoveryChannel = make(DiscoveryStoreChannel, 10)
+	proxy.DiscoveryChannel = make(discovery.DiscoveryStoreChannel, 10)
 
 	/* step: create a load balancer for the service */
 	balancer, err := NewLoadBalancer("rr")
@@ -45,7 +47,7 @@ func NewProxyService(service Service) (ProxyService, error) {
 	proxy.LoadBalancer = balancer
 
 	/* step: create a service discovery agent on this service */
-	discovery, err := NewDiscoveryService(service)
+	discovery, err := discovery.NewDiscoveryService(config, service)
 	if err != nil {
 		glog.Errorf("Unable to create a discovery store for service: %s, error: %s", service, err)
 		return nil, err
@@ -62,16 +64,16 @@ func NewProxyService(service Service) (ProxyService, error) {
 	return proxy, nil
 }
 
-func NewProxySocket(protocol ServiceProtocol, port int) (ProxySocket, error) {
+func NewProxySocket(protocol services.ServiceProtocol, port int) (ProxySocket, error) {
 	switch protocol {
-	case TCP:
+	case services.TCP:
 		listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 		if err != nil {
 			glog.Errorf("Unable to create a TCP proxy socket, error: %s", err)
 			return nil, err
 		}
 		return &TCPProxySocket{listener}, nil
-	case UDP:
+	case services.UDP:
 		addr, err := net.ResolveUDPAddr("udp", ":"+strconv.Itoa(port))
 		if err != nil {
 			return nil, err
@@ -85,7 +87,7 @@ func NewProxySocket(protocol ServiceProtocol, port int) (ProxySocket, error) {
 	return nil, fmt.Errorf("Unknown protocol %q", protocol)
 }
 
-func TryConnect(service *Service, lb LoadBalancer, ds DiscoveryStore) (backend net.Conn, err error) {
+func TryConnect(service *services.Service, lb LoadBalancer, ds discovery.DiscoveryStore) (backend net.Conn, err error) {
 	/* step: attempt multiple times to connect to backend */
 	for _, retryTimeout := range endpointDialTimeout {
 		endpoints, err := ds.ListEndpoints()

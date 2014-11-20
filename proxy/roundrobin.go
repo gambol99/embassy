@@ -14,13 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package balancer
+package proxy
 
 import (
 	"sync"
 
-	"github.com/gambol99/embassy"
-	"github.com/gambol99/embassy/proxy/loadbalancer"
+	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
@@ -33,14 +32,13 @@ func NewLoadBalancerRR() LoadBalancer {
 	return &LoadBalancerRR{}
 }
 
-func (lb *LoadBalancerRR) SelectEndpoint(service *Service, endpoints []ServiceEndpoint) (*ServiceEndpoint, error) {
+func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []services.ServiceEndpoint) (*services.ServiceEndpoint, error) {
 	glog.V(3).Infof("Load (RR): selecting endpoint service: %s", service)
 	return nil, nil
 }
 
-func (lb *LoadBalancerRR) UpdateEndpoints(service *Service, endpoints []ServiceEndpoint) {
+func (lb *LoadBalancerRR) UpdateEndpoints(service *services.Service, endpoints []services.ServiceEndpoint) {
 	lb.Lock()
 	defer lb.Unlock()
 	glog.V(2).Infof("lb (rr) : updating the endpoints")
-
 }

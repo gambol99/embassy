@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package config
 
 import (
 	"errors"
@@ -24,10 +24,13 @@ import (
 )
 
 var (
-	socket    = flag.String("docker", "unix://var/run/docker.socket", "the location of the docker socket")
-	discovery = flag.String("discovery", "etcd://localhost:4001", "the discovery backend to pull the services from")
-	config    ServiceConfiguration
+	socket, discovery *string
 )
+
+func init() {
+	socket = flag.String("docker", "unix://var/run/docker.socket", "the location of the docker socket")
+	discovery = flag.String("discovery", "etcd://localhost:4001", "the discovery backend to pull the services from")
+}
 
 type ServiceOptions map[string]string
 
@@ -72,16 +75,17 @@ func (s ServiceConfiguration) ValidConfiguration() error {
 	return nil
 }
 
-func NewServiceConfiguration() ServiceConfiguration {
-	config.DiscoveryURI = *discovery
-	config.DockerSocket = *socket
-	config.BackendPrefix = "BACKEND_"
-	config.FixedBackend = ""
+func NewServiceConfiguration() *ServiceConfiguration {
+	configuration := new(ServiceConfiguration)
+	configuration.DiscoveryURI = *discovery
+	configuration.DockerSocket = *socket
+	configuration.BackendPrefix = "BACKEND_"
+	configuration.FixedBackend = ""
 	/* step: check if the command line has a fixed backend */
 	if length := len(os.Args); length == 2 {
-		config.FixedBackend = os.Args[1]
+		configuration.FixedBackend = os.Args[1]
 	}
-	return config
+	return configuration
 }
 
 func ProgName() string {

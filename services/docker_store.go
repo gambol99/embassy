@@ -13,7 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package services
 
 import (
@@ -22,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/fsouza/go-dockerclient"
+	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
@@ -38,11 +38,12 @@ type DockerEventsChannel chan *docker.APIEvents
 type DockerServiceStore struct {
 	Docker  *docker.Client /* docker api client */
 	Address string
+	Config  *config.ServiceConfiguration
 	Events  DockerEventsChannel /* docker events channel */
 	Updates ServiceStoreChannel /* service request are passed into this channel */
 }
 
-func NewDockerServiceStore(channel ServiceStoreChannel) (ServiceStore, error) {
+func NewDockerServiceStore(config *config.ServiceConfiguration, channel ServiceStoreChannel) (ServiceStore, error) {
 	/* step: we create a docker client */
 	if client, err := docker.NewClient(config.DockerSocket); err != nil {
 		glog.Errorf("Unable to create a docker client, error: %s", err)
@@ -54,7 +55,7 @@ func NewDockerServiceStore(channel ServiceStoreChannel) (ServiceStore, error) {
 			return nil, err
 		} else {
 			/* step: create the service provider */
-			service := &DockerServiceStore{client, ipaddress, nil, channel}
+			service := &DockerServiceStore{client, ipaddress, config, nil, channel}
 
 			/* step: kick off the discovery loop */
 			if err := service.DiscoverServices(); err != nil {
@@ -135,7 +136,7 @@ func (r DockerServiceStore) InspectContainerServices(containerId string) (defini
 			if environment, err := ContainerEnvironment(container.Config.Env); err == nil {
 				/* step; scan the runtime variables for backend links */
 				for key, value := range environment {
-					if IsBackendService(key, value) {
+					if r.IsBackendService(key, value) {
 						/* step: create a backend defintion, validate and convert to service definition */
 						var definition BackendDefiniton
 						definition.Name = key
@@ -155,6 +156,11 @@ func (r DockerServiceStore) InspectContainerServices(containerId string) (defini
 	return
 }
 
+func (r DockerServiceStore) IsBackendService(key, value string) (found bool) {
+	found, _ = regexp.MatchString(r.Config.BackendPrefix, key)
+	return
+}
+
 func GetDockerIPAddress(container *docker.Container) (string, error) {
 	if address := container.NetworkSettings.IPAddress; address == "" {
 		glog.Infof("The container: %s does not have an ipaddress", container.ID)
@@ -162,11 +168,6 @@ func GetDockerIPAddress(container *docker.Container) (string, error) {
 	} else {
 		return address, nil
 	}
-}
-
-func IsBackendService(key, value string) (found bool) {
-	found, _ = regexp.MatchString(config.BackendPrefix, key)
-	return
 }
 
 /*

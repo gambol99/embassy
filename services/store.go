@@ -19,6 +19,7 @@ package services
 import (
 	"errors"
 
+	"github.com/gambol99/embassy/config"
 	"github.com/golang/glog"
 )
 
@@ -36,14 +37,14 @@ type ServiceStore interface {
 	DiscoverServices() error
 }
 
-func NewServiceStore(channel ServiceStoreChannel) (ServiceStore, error) {
+func NewServiceStore(config *config.ServiceConfiguration, channel ServiceStoreChannel) (ServiceStore, error) {
 	/* step: has the backend been hardcoded on the command line, if so we use a fixed backend service */
 	if config.IsFixedBackend() {
 		glog.V(1).Infof("Using Fixed Backend service: %s", config.FixedBackend)
 		return nil, errors.New("Fixed Backend service is not presently supported")
 	} else {
 		glog.V(1).Infof("Using Docker Backend service, socket: %s", config.DockerSocket)
-		if service, err := NewDockerServiceStore(channel); err != nil {
+		if service, err := NewDockerServiceStore(config, channel); err != nil {
 			glog.Fatalf("Unable to create the docker backend service, error: %s", err)
 		} else {
 			return service, err

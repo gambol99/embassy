@@ -20,6 +20,7 @@ import (
 	"errors"
 	"regexp"
 
+	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
@@ -29,27 +30,28 @@ const (
 )
 
 type DiscoveryEvent struct {
-	Endpoint ServiceEndpoint
+	Endpoint services.ServiceEndpoint
 }
 
 type DiscoveryStoreChannel chan DiscoveryEvent
 
 type DiscoveryStore interface {
-	ListEndpoints() ([]ServiceEndpoint, error)
+	ListEndpoints() ([]services.ServiceEndpoint, error)
 	WatchEndpoints(channel DiscoveryStoreChannel)
 }
 
 type DiscoveryStoreService struct {
 	Service services.Service
 	Store   DiscoveryStoreProvider
+	Config  *config.ServiceConfiguration
 }
 
 type DiscoveryStoreProvider interface {
-	List(Service) ([]services.ServiceEndpoint, error)
-	Watch(Service)
+	List(services.Service) ([]services.ServiceEndpoint, error)
+	Watch(services.Service)
 }
 
-func NewDiscoveryService(service services.Service) (DiscoveryStore, error) {
+func NewDiscoveryService(config *config.ServiceConfiguration, service services.Service) (DiscoveryStore, error) {
 	/* step: check if the store provider is supported */
 	if !IsDiscoveryStore(config.DiscoveryURI) {
 		return nil, errors.New("The backend discovery store specified is not supported")
@@ -58,11 +60,12 @@ func NewDiscoveryService(service services.Service) (DiscoveryStore, error) {
 	switch config.DiscoveryURI {
 	case "etcd":
 		glog.Infof("Using Etcd as discovery backend, uri: %s", config.DiscoveryURI)
-		if provider, err := NewEtcdDiscoveryService(); err != nil {
+		if provider, err := NewEtcdDiscoveryService(config); err != nil {
 			glog.Errorf("Unable to initialize the Etcd backend store, error: %s", err)
 			return nil, err
 		} else {
 			discovery.Store = provider
+			discovery.Config = config
 		}
 	}
 	return discovery, nil

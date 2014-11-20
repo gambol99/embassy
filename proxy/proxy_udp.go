@@ -18,6 +18,9 @@ package proxy
 
 import (
 	"net"
+
+	"github.com/gambol99/embassy/discovery"
+	"github.com/gambol99/embassy/services"
 )
 
 type UDPProxySocket struct {
@@ -28,7 +31,7 @@ func (udp *UDPProxySocket) Addr() net.Addr {
 	return udp.LocalAddr()
 }
 
-func (tcp *UDPProxySocket) ProxyService(service *Service, balancer LoadBalancer, discovery DiscoveryStore) error {
+func (tcp *UDPProxySocket) ProxyService(service *services.Service, balancer LoadBalancer, discovery discovery.DiscoveryStore) error {
 	for {
 		return nil
 	}

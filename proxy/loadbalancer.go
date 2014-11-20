@@ -24,9 +24,9 @@ import (
 
 type LoadBalancer interface {
 	/* select a endpoint for this service */
-	SelectEndpoint(service *Service, endpoints []ServiceEndpoint) (*ServiceEndpoint, error)
+	SelectEndpoint(service *services.Service, endpoints []services.ServiceEndpoint) (*services.ServiceEndpoint, error)
 	/* update the endpoints */
-	UpdateEndpoints(service *Service, endpoints []ServiceEndpoint)
+	UpdateEndpoints(service *services.Service, endpoints []services.ServiceEndpoint)
 }
 
 const (
@@ -37,12 +37,12 @@ func NewLoadBalancer(name string) (LoadBalancer, error) {
 	if name == "" {
 		name = DEFAULT_BALANCER_NAME
 	}
-	balancer := map[string]LoadBalancer{
+	lb := map[string]LoadBalancer{
 		"rr": NewLoadBalancerRR(),
 		"lc": NewLeastConnections(),
 	}[name]
-	if balancer == nil {
+	if lb == nil {
 		return nil, errors.New("Unable to find the specified load balancer")
 	}
-	return balancer, nil
+	return lb, nil
 }

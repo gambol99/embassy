@@ -19,35 +19,37 @@ package proxy
 import (
 	"net"
 
+	"github.com/gambol99/embassy/discovery"
+	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
 type Proxier struct {
-	Service      Service
-	Discovery    DiscoveryStore
+	Service      services.Service
+	Discovery    discovery.DiscoveryStore
 	LoadBalancer LoadBalancer
 	Socket       ProxySocket
 	/* --- channels ---- */
-	DiscoveryChannel DiscoveryStoreChannel
+	DiscoveryChannel discovery.DiscoveryStoreChannel
 }
 
 type ProxyService interface {
-	GetService() Service
-	GetServiceEndpoints() ([]ServiceEndpoint, error)
+	GetService() services.Service
+	GetServiceEndpoints() ([]services.ServiceEndpoint, error)
 	StartServiceProxy()
 }
 
 type ProxySocket interface {
 	Addr() net.Addr
 	Close() error
-	ProxyService(*Service, LoadBalancer, DiscoveryStore) error
+	ProxyService(*services.Service, LoadBalancer, discovery.DiscoveryStore) error
 }
 
-func (p Proxier) GetService() Service {
+func (p Proxier) GetService() services.Service {
 	return p.Service
 }
 
-func (p *Proxier) GetServiceEndpoints() ([]ServiceEndpoint, error) {
+func (p *Proxier) GetServiceEndpoints() ([]services.ServiceEndpoint, error) {
 	list, err := p.Discovery.ListEndpoints()
 	if err != nil {
 		glog.Errorf("Unable to retrieve a list of endpoints for service; %s, error: %s", p.Service, err)
@@ -58,9 +60,9 @@ func (p *Proxier) GetServiceEndpoints() ([]ServiceEndpoint, error) {
 
 func (p *Proxier) StartServiceProxy() {
 	/* step: starting listening on the service port */
-	go func(proxy *Proxier) {
+	go func(px *Proxier) {
 		glog.Infof("Starting proxy service: %s", p.Service)
-		proxy.Socket.ProxyService(&p.Service, proxy.LoadBalancer, proxy.Discovery)
+		px.Socket.ProxyService(&px.Service, px.LoadBalancer, px.Discovery)
 	}(p)
 	/* step: listen out for events from the channel */
 	go func(p *Proxier) {
