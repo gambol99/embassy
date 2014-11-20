@@ -45,23 +45,27 @@ func main() {
 	}
 
 	/* step: create a backend service provider */
-	serviceUpdates := make(services.ServiceStoreChannel, 3)
-	if service_store, err := services.NewServiceStore(configuration, serviceUpdates); err != nil {
+	channel := make(services.ServiceStoreChannel, 3)
+	store, err := services.NewServiceStore(configuration, channel)
+	if err != nil {
 		glog.Fatalf("Unable to create the backend request service, error: %s", err)
-	} else {
-		/* step: we listen out for backend service requests and create a proxy on them */
-		for {
-			backendRequest := <-serviceUpdates
-			glog.V(2).Info("%s: received a backend service request: %s", config.ProgName(), backendRequest)
-			/* step: check if this is a duplicate request */
-			if proxy, found := ProxyServiceLookup(backendRequest); found {
-				glog.Errorf("%s: backend service request invalid, error: %s", config.ProgName(), err)
-				continue
-			} else {
-				glog.Errorf("%s: we need to create new proxy for service: %s", config.ProgName(), backendRequest)
-				var _ = proxy
-				var _ = service_store
-			}
+	}
+	/* step: start the discovery process */
+	if err := store.DiscoverServices(); err != nil {
+		glog.Fatalf("Unable to start the discovery services, error: %s", err)
+	}
+	glog.V(3).Infof("Starting the services event loop")
+	for {
+		service_request := <-channel
+		glog.V(2).Info("%s: received a backend service request: %s", config.ProgName(), service_request)
+		/* step: check if this is a duplicate request */
+		if proxy, found := ProxyServiceLookup(service_request); found {
+			glog.Errorf("%s: backend service request invalid, error: %s", config.ProgName(), err)
+			continue
+		} else {
+			glog.Errorf("%s: we need to create new proxy for service: %s", config.ProgName(), service_request)
+			var _ = proxy
+			var _ = store
 		}
 	}
 }

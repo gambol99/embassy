@@ -57,13 +57,7 @@ func NewDockerServiceStore(config *config.Configuration, channel ServiceStoreCha
 		} else {
 			glog.V(5).Infof("Proxy ip address: %s, interface: %s", ipaddress, config.Interface)
 			/* step: create the service provider */
-			service := &DockerServiceStore{client, ipaddress, config, nil, channel}
-			/* step: kick off the discovery loop */
-			if err := service.DiscoverServices(); err != nil {
-				glog.Errorf("Unable to start the docker discovery loop, error: %s", err)
-				return nil, err
-			}
-			return service, nil
+			return &DockerServiceStore{client, ipaddress, config, nil, channel}
 		}
 	}
 }
