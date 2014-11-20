@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,19 +17,19 @@ limitations under the License.
 package config
 
 import (
-	"errors"
 	"flag"
 	"net/url"
 	"os"
 )
 
 var (
-	socket, discovery *string
+	socket, discovery, iface *string
 )
 
 func init() {
 	socket = flag.String("docker", "unix://var/run/docker.socket", "the location of the docker socket")
 	discovery = flag.String("discovery", "etcd://localhost:4001", "the discovery backend to pull the services from")
+	iface = flag.String("interface", "eth0", "the interface to take the proxy address from")
 }
 
 type ServiceOptions map[string]string
@@ -46,37 +46,31 @@ func (s ServiceOptions) Has(key string) bool {
 	return false
 }
 
-type ServiceConfiguration struct {
+type Configuration struct {
 	DockerSocket  string
 	DiscoveryURI  string
 	FixedBackend  string
 	BackendPrefix string
 }
 
-func (s ServiceConfiguration) GetDiscoveryURI() (*url.URL, error) {
-	if s.DiscoveryURI == "" {
-		return nil, errors.New("The backend option has not been specified")
-	}
-	if uri, err := url.Parse(s.DiscoveryURI); err != nil {
-		return nil, err
-	} else {
-		return uri, nil
-	}
+func (s Configuration) GetDiscoveryURI() *url.URL {
+	uri, _ := url.Parse(s.DiscoveryURI)
+	return uri
 }
 
-func (s ServiceConfiguration) IsFixedBackend() bool {
+func (s Configuration) IsFixedBackend() bool {
 	if s.FixedBackend == "" {
 		return false
 	}
 	return true
 }
 
-func (s ServiceConfiguration) ValidConfiguration() error {
+func (s Configuration) ValidConfiguration() error {
 	return nil
 }
 
-func NewServiceConfiguration() *ServiceConfiguration {
-	configuration := new(ServiceConfiguration)
+func NewConfiguration() *Configuration {
+	configuration := new(Configuration)
 	configuration.DiscoveryURI = *discovery
 	configuration.DockerSocket = *socket
 	configuration.BackendPrefix = "BACKEND_"

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,12 +38,12 @@ type DockerEventsChannel chan *docker.APIEvents
 type DockerServiceStore struct {
 	Docker  *docker.Client /* docker api client */
 	Address string
-	Config  *config.ServiceConfiguration
+	Config  *config.Configuration
 	Events  DockerEventsChannel /* docker events channel */
 	Updates ServiceStoreChannel /* service request are passed into this channel */
 }
 
-func NewDockerServiceStore(config *config.ServiceConfiguration, channel ServiceStoreChannel) (ServiceStore, error) {
+func NewDockerServiceStore(config *config.Configuration, channel ServiceStoreChannel) (ServiceStore, error) {
 	/* step: we create a docker client */
 	if client, err := docker.NewClient(config.DockerSocket); err != nil {
 		glog.Errorf("Unable to create a docker client, error: %s", err)

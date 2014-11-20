@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,21 +23,13 @@ import (
 	"github.com/golang/glog"
 )
 
-/*
-  SERVICE=<SERVICE_NAME>[TAGS,..];<PORT>;
-  BACKEND=etcd://localhost:4001
-  BACKEND_REDIS_MASTER=redis.master;PORT
-  BACKEND_REDIS_MASTER=redis.master[%{ENVIRONMENT|prod},dc1,]
-  BACKEND_REDIS_MASTER=/%{PREFIX|services}/%{ENVIRONMENT|prod}/redis/master/6379/*
-*/
-
 type ServiceStoreChannel chan Service
 
 type ServiceStore interface {
 	DiscoverServices() error
 }
 
-func NewServiceStore(config *config.ServiceConfiguration, channel ServiceStoreChannel) (ServiceStore, error) {
+func NewServiceStore(config *config.Configuration, channel ServiceStoreChannel) (ServiceStore, error) {
 	/* step: has the backend been hardcoded on the command line, if so we use a fixed backend service */
 	if config.IsFixedBackend() {
 		glog.V(1).Infof("Using Fixed Backend service: %s", config.FixedBackend)

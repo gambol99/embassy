@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ type Proxier struct {
 
 type ProxyService interface {
 	GetService() services.Service
-	GetServiceEndpoints() ([]services.ServiceEndpoint, error)
+	GetEndpoints() ([]services.Endpoint, error)
 	StartServiceProxy()
 }
 
@@ -49,7 +49,7 @@ func (p Proxier) GetService() services.Service {
 	return p.Service
 }
 
-func (p *Proxier) GetServiceEndpoints() ([]services.ServiceEndpoint, error) {
+func (p *Proxier) GetEndpoints() ([]services.Endpoint, error) {
 	list, err := p.Discovery.ListEndpoints()
 	if err != nil {
 		glog.Errorf("Unable to retrieve a list of endpoints for service; %s, error: %s", p.Service, err)

@@ -14,25 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package proxy
+package services
 
 import (
+	"fmt"
 	"net"
-
-	"github.com/gambol99/embassy/discovery"
-	"github.com/gambol99/embassy/services"
 )
 
-type UDPProxySocket struct {
-	*net.UDPConn
+type EndpointID string
+
+type Endpoint struct {
+	ID      EndpointID
+	Address net.Addr
+	Port    int
 }
 
-func (udp *UDPProxySocket) Addr() net.Addr {
-	return udp.LocalAddr()
-}
-
-func (tcp *UDPProxySocket) ProxyService(service *services.Service, balancer LoadBalancer, discovery discovery.DiscoveryStore) error {
-	for {
-		return nil
-	}
+func (s Endpoint) String() string {
+	return fmt.Sprintf("id: %s, address: %s, port: %d", s.ID, s.Address, s.Port)
 }

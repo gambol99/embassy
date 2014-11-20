@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ func CreateProxy(request services.Service) (*proxy.ProxyService, error) {
 func main() {
 	flag.Parse()
 
-	configuration := config.NewServiceConfiguration()
+	configuration := config.NewConfiguration()
 	/* step: validate the service configuration */
 	if err := configuration.ValidConfiguration(); err != nil {
 		glog.Fatalf("Invalid service configuration, error: %s", configuration.ValidConfiguration())

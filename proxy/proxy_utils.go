@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import (
 
 var endpointDialTimeout = []time.Duration{1, 2, 4, 8}
 
-func NewProxyService(config *config.ServiceConfiguration, service services.Service) (ProxyService, error) {
+func NewProxyService(config *config.Configuration, service services.Service) (ProxyService, error) {
 	proxy := new(Proxier)
 	/* step: create discovery channel for this service */
 	proxy.DiscoveryChannel = make(discovery.DiscoveryStoreChannel, 10)

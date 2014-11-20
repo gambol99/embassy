@@ -14,25 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package proxy
+package main
 
-import (
-	"net"
-
-	"github.com/gambol99/embassy/discovery"
-	"github.com/gambol99/embassy/services"
-)
-
-type UDPProxySocket struct {
-	*net.UDPConn
-}
-
-func (udp *UDPProxySocket) Addr() net.Addr {
-	return udp.LocalAddr()
-}
-
-func (tcp *UDPProxySocket) ProxyService(service *services.Service, balancer LoadBalancer, discovery discovery.DiscoveryStore) error {
-	for {
-		return nil
-	}
-}
+const Version = "0.0.1"

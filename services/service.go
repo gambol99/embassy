@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,15 +18,11 @@ package services
 
 import (
 	"fmt"
-	"net"
 	"strings"
 )
 
 type ServiceID string
-type ServiceEndpointID string
-type ServiceName string
 type ServiceTags []string
-
 type ServiceProtocol int
 
 const (
@@ -38,7 +34,7 @@ type Service struct {
 	ID       ServiceID
 	Name     string
 	Protocol ServiceProtocol
-	Tags     []string
+	Tags     ServiceTags
 	Port     int
 }
 
@@ -65,14 +61,4 @@ func (s Service) isUDP() bool {
 		return true
 	}
 	return false
-}
-
-type ServiceEndpoint struct {
-	ID      ServiceEndpointID
-	Address net.Addr
-	Port    int
-}
-
-func (s ServiceEndpoint) String() string {
-	return fmt.Sprintf("id: %s, address: %s, port: %d", s.ID, s.Address, s.Port)
 }

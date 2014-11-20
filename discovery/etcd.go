@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,21 +28,18 @@ type EtcdDiscoveryService struct {
 	waitIndex uint64
 }
 
-func NewEtcdDiscoveryService(config *config.ServiceConfiguration) (DiscoveryStoreProvider, error) {
-	if uri, err := config.GetDiscoveryURI(); err != nil {
-		glog.Errorf("Unable to create the etcd client, backend: %s, error: %s", uri, err)
-		return nil, err
-	} else {
-		urls := make([]string, 0)
-		if uri.Host != "" {
-			urls = append(urls, "http://"+uri.Host)
-		}
-		return &EtcdDiscoveryService{client: etcd.NewClient(urls)}, nil
+func NewEtcdStore(config *config.Configuration) (DiscoveryStoreProvider, error) {
+	glog.V(3).Infof("Creating a new Etcd client")
+	uri := config.GetDiscoveryURI()
+	urls := make([]string, 0)
+	if uri.Host != "" {
+		urls = append(urls, "http://"+uri.Host)
 	}
+	return &EtcdDiscoveryService{client: etcd.NewClient(urls)}, nil
 }
 
-func (etcd *EtcdDiscoveryService) List(service services.Service) ([]services.ServiceEndpoint, error) {
-	list := make([]services.ServiceEndpoint, 0)
+func (etcd *EtcdDiscoveryService) List(si *services.Service) ([]services.Endpoint, error) {
+	list := make([]services.Endpoint, 0)
 	/*
 		if resp, err := etcd.client.Get(path, false, true); err != nil {
 			glog.Error("etcd:", err)
@@ -62,7 +59,7 @@ func (etcd *EtcdDiscoveryService) List(service services.Service) ([]services.Ser
 	return list, nil
 }
 
-func (etcd *EtcdDiscoveryService) Watch(service services.Service) {
+func (etcd *EtcdDiscoveryService) Watch(si *services.Service) {
 	/*
 		if resp, err := etcd.client.Watch(path, s.waitIndex, true, nil, nil); err != nil {
 			glog.Error("etcd:", err)

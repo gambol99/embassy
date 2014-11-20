@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,77 +16,52 @@ limitations under the License.
 
 package discovery
 
-/*
-#
-#   Author: Rohith
-#   Date: 2014-11-14 22:36:56 +0000 (Fri, 14 Nov 2014)
-#
-#  vim:ts=2:sw=2:et
-#
-*/
-
-/*
 import (
-	//"net/url"
-
 	"github.com/armon/consul-api"
-	"github.com/golang/glog"
+	"github.com/gambol99/embassy/config"
+	"github.com/gambol99/embassy/services"
+	//"github.com/golang/glog"
 )
 
-type ConsulDiscoveryService struct {
+type ConsulStore struct {
 	client    *consulapi.Client
 	waitIndex uint64
 }
 
-func NewConsulDiscoveryService(backend string, options map[string]string) (DiscoveryStoreProvider, error) {
+func NewConsulStore(cfg *config.Configuration) (DiscoveryStoreProvider, error) {
+	consul := consulapi.DefaultConfig()
+	consul.Address = cfg.GetDiscoveryURI().Host
+	client, err := consulapi.NewClient(consul)
+	if err != nil {
+		return nil, err
+	}
+	return &ConsulStore{client, 0}, nil
+}
 
-		config := consulapi.DefaultConfig()
-		if backend.Host != "" {
-			config.Address = uri.Host
-		}
-		if client, err := consulapi.NewClient(config); err != nil {
-			return nil, err
+func (cs ConsulStore) List(si *services.Service) ([]services.Endpoint, error) {
+	/*
+		if kv, _, err := cs.client.KV().List(path, &consulapi.QueryOptions{}); err != nil {
+			glog.Errorf("Consul error: %s", err)
+			return []string{}, nil
 		} else {
-			service := new(ConsulDiscoveryService)
-			service.client = client
-			return service, nil
+			list := make([]string, 0)
+			for _, pair := range kv {
+				list = append(list, string(pair.Value))
+			}
+			return list, nil
 		}
-
+	*/
 	return nil, nil
 }
 
-func (s ConsulDiscoveryService) List(path string) ([]string, error) {
-	if kv, _, err := s.client.KV().List(path, &consulapi.QueryOptions{}); err != nil {
-		glog.Errorf("Consul error: %s", err)
-		return []string{}, nil
-	} else {
-		list := make([]string, 0)
-		for _, pair := range kv {
-			list = append(list, string(pair.Value))
+func (cs *ConsulStore) Watch(si *services.Service) {
+	/*
+		if _, meta, err := cs.client.KV().Get(path, &consulapi.QueryOptions{WaitIndex: s.waitIndex}); err != nil {
+			glog.Errorf("Consul error: %s", err)
+			return err
+		} else {
+			s.waitIndex = meta.LastIndex
+			return nil
 		}
-		return list, nil
-	}
+	*/
 }
-
-func (s ConsulDiscoveryService) Get(path string) string {
-	if kv, _, err := s.client.KV().Get(path, &consulapi.QueryOptions{}); err != nil {
-		glog.Errorf("Consul error: %s", err)
-		return ""
-	} else {
-		if kv == nil {
-			return ""
-		}
-		return string(kv.Value)
-	}
-}
-
-func (s *ConsulDiscoveryService) Watch(path string) error {
-	if _, meta, err := s.client.KV().Get(path, &consulapi.QueryOptions{WaitIndex: s.waitIndex}); err != nil {
-		glog.Errorf("Consul error: %s", err)
-		return err
-	} else {
-		s.waitIndex = meta.LastIndex
-		return nil
-	}
-}
-*/

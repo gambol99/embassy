@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@ import (
 
 type LoadBalancer interface {
 	/* select a endpoint for this service */
-	SelectEndpoint(service *services.Service, endpoints []services.ServiceEndpoint) (*services.ServiceEndpoint, error)
+	SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (*services.Endpoint, error)
 	/* update the endpoints */
-	UpdateEndpoints(service *services.Service, endpoints []services.ServiceEndpoint)
+	UpdateEndpoints(service *services.Service, endpoints []services.Endpoint)
 }
 
 const (

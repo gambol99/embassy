@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,21 +31,21 @@ func (count *ConnectionCount) Decrement() {
 }
 
 type LoadBalancerLC struct {
-	Connections map[services.ServiceEndpointID]ConnectionCount
+	Connections map[services.EndpointID]ConnectionCount
 }
 
 func NewLeastConnections() LoadBalancer {
 	balancer := new(LoadBalancerLC)
-	balancer.Connections = make(map[services.ServiceEndpointID]ConnectionCount, 0)
+	balancer.Connections = make(map[services.EndpointID]ConnectionCount, 0)
 	return balancer
 }
 
-func (r *LoadBalancerLC) SelectEndpoint(service *services.Service, endpoints []services.ServiceEndpoint) (*services.ServiceEndpoint, error) {
+func (r *LoadBalancerLC) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (*services.Endpoint, error) {
 	glog.V(3).Infof("Load (LC): selecting endpoint service: %s", service)
 
 	return nil, nil
 }
 
-func (lb *LoadBalancerLC) UpdateEndpoints(service *services.Service, endpoints []services.ServiceEndpoint) {
+func (lb *LoadBalancerLC) UpdateEndpoints(service *services.Service, endpoints []services.Endpoint) {
 
 }

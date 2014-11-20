@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawaredene All rights reserved.
+Copyright 2014 Rohith Jayawardene All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,12 +32,12 @@ func NewLoadBalancerRR() LoadBalancer {
 	return &LoadBalancerRR{}
 }
 
-func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []services.ServiceEndpoint) (*services.ServiceEndpoint, error) {
+func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (*services.Endpoint, error) {
 	glog.V(3).Infof("Load (RR): selecting endpoint service: %s", service)
 	return nil, nil
 }
 
-func (lb *LoadBalancerRR) UpdateEndpoints(service *services.Service, endpoints []services.ServiceEndpoint) {
+func (lb *LoadBalancerRR) UpdateEndpoints(service *services.Service, endpoints []services.Endpoint) {
 	lb.Lock()
 	defer lb.Unlock()
 	glog.V(2).Infof("lb (rr) : updating the endpoints")
