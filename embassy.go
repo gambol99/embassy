@@ -22,51 +22,73 @@ import (
 	"github.com/gambol99/embassy/proxy"
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
+	"runtime"
 )
 
+var proxies = make(map[services.ServiceID]proxy.ProxyService)
+
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	/* step: parse command line options */
+	configuration := ParseOptions()
+	/* step: create a backend service provider */
+	store, channel := LoadServicesStore(configuration)
+	var _ = store
+	for {
+		request := <-channel
+		glog.V(2).Infof("Received a backend service request: %s", request)
+		if proxier := FindProxyService(request); proxier == nil {
+			proxier, _ = CreateServiceProxy(configuration, request)
+			glog.Infof("Proxy Service: %s", proxier)
+		} else {
+			glog.Infof("Service request already being handled, skipping request")
+		}
+	}
+}
+
+func FindProxyService(si services.Service) proxy.ProxyService {
+	glog.V(4).Infof("Looking up proxy for service: %s", si)
+	proxier, found := proxies[si.ID]
+	if !found {
+		glog.V(5).Infof("A proxy for service: %s does not exist at present", si)
+	}
+	return proxier
+}
+
+func CreateServiceProxy(cfg *config.Configuration, si services.Service) (proxy.ProxyService, error) {
+	glog.Infof("Service request: %s creating new proxy service as handler", si)
+	proxier, err := proxy.NewProxyService(cfg, si)
+	if err != nil {
+		glog.Errorf("Failed to create proxy service for %s", si)
+	}
+	proxies[si.ID] = proxier
+	proxier.StartServiceProxy()
+	return proxier, err
+}
+
+func ParseOptions() *config.Configuration {
 	flag.Parse()
 	configuration := config.NewConfiguration()
 	glog.Infof("Loading the configuration: %v", configuration)
-
 	/* step: validate the service configuration */
-	if err := configuration.ValidConfiguration(); err != nil {
-		glog.Fatalf("Invalid service configuration, error: %s", configuration.ValidConfiguration())
-	}
+	err := configuration.ValidConfiguration()
+	Assert(err, "Invalid service configuration options, please check usage")
+	return configuration
+}
 
-	/* step: create a backend service provider */
-	channel := make(services.ServiceStoreChannel, 3)
-	proxies := make(map[services.ServiceID]proxy.ProxyService)
-
+func LoadServicesStore(cfg *config.Configuration) (services.ServiceStore, services.ServiceStoreChannel) {
 	glog.V(5).Infof("Attempting to create a new services store")
-	store, err := services.NewServiceStore(configuration, channel)
-	if err != nil {
-		glog.Fatalf("Unable to create the backend request service, error: %s", err)
-	}
-
+	channel := make(services.ServiceStoreChannel, 10)
+	store, err := services.NewServiceStore(cfg, channel)
+	Assert(err, "Unable to create the backend request service")
 	/* step: start the discovery process */
-	if err := store.DiscoverServices(); err != nil {
-		glog.Fatalf("Unable to start the discovery services, error: %s", err)
-	}
-	glog.V(3).Infof("Starting the services event loop")
+	Assert(store.DiscoverServices(), "Unable to start the discovery services")
+	return store, channel
+}
 
-	for {
-		service_request := <-channel
-		glog.V(2).Infof("Received a backend service request: %s", service_request)
-		/* step: check if this is a duplicate request */
-		if proxier, found := proxies[service_request.ID]; found {
-			glog.Infof("Service request: %s already proxied by: %s", service_request, proxier)
-		} else {
-			glog.Infof("Service request: %s new proxy, creating now", service_request)
-			proxier, err := proxy.NewProxyService(configuration, service_request)
-			if err != nil {
-				glog.Errorf("Failed to create proxy service for %s", service_request)
-				continue
-			}
-			proxies[service_request.ID] = proxier
-			proxier.StartServiceProxy()
-			glog.Infof("Successfully created new proxy for service")
-			var _ = store
-		}
+func Assert(err error, message string) {
+	if err != nil {
+		glog.Fatalf("%s, error: %s", message, err)
 	}
 }

@@ -24,7 +24,7 @@ import (
 )
 
 type LoadBalancerRR struct {
-	LastIndex int
+	NextEndpointIndex int
 }
 
 func NewLoadBalancerRR() LoadBalancer {
@@ -32,21 +32,22 @@ func NewLoadBalancerRR() LoadBalancer {
 }
 
 func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (services.Endpoint, error) {
-	glog.V(3).Infof("Load (RR): selecting endpoint service: %s", service)
+	glog.V(6).Infof("Load (RR): selecting endpoint service: %s, last index: %d, endpoints: %V", service, lb.NextEndpointIndex, endpoints)
 	if len(endpoints) <= 0 {
 		return "", errors.New("The service does not have any endpoints")
-	} else {
-		lb.LastIndex++
-		if lb.LastIndex > len(endpoints) {
-			lb.LastIndex = 0 // reset the index to the begining
-		}
-		return endpoints[lb.LastIndex], nil
 	}
+	if lb.NextEndpointIndex > len(endpoints)-1 {
+		glog.V(5).Infof("Load (RR) Resetting the index back to begining")
+		lb.NextEndpointIndex = 0
+	}
+	endpoint := endpoints[lb.NextEndpointIndex]
+	lb.NextEndpointIndex++
+	return endpoint, nil
 }
 
 func (lb *LoadBalancerRR) UpdateEndpoints(service *services.Service, endpoints []services.Endpoint) {
 	glog.V(2).Infof("lb (rr) : updating the endpoints")
 	if len(endpoints) > 0 {
-		lb.LastIndex = 0
+		lb.NextEndpointIndex = 0
 	}
 }

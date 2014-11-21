@@ -19,6 +19,7 @@ package proxy
 import (
 	"net"
 	"sync"
+	"time"
 
 	"github.com/gambol99/embassy/discovery"
 	"github.com/gambol99/embassy/services"
@@ -47,16 +48,22 @@ func (tcp *TCPProxySocket) ProxyService(service *services.Service, balancer Load
 func (p *TCPProxySocket) HandleTCPConnection(service *services.Service, inConn net.Conn, balancer LoadBalancer, discovery discovery.DiscoveryStore) error {
 	/* step: we try and connect to a backend */
 	outConn, err := TryConnect(service, balancer, discovery)
-	defer inConn.Close()
+	defer func() {
+		glog.V(5).Infof("Closing the connection from: %v", inConn.RemoteAddr())
+		inConn.Close()
+	}()
+	/* step: set some deadlines */
+	inConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	if err != nil {
 		glog.Errorf("Failed to connect to balancer: %v", err)
 		return err
 	}
 	defer outConn.Close()
 	/* step: we spin up to async routines to handle the byte transfer */
-	waitgroup := &sync.WaitGroup{}
-	go TransferTCPBytes("->", inConn, outConn, waitgroup)
-	go TransferTCPBytes("<-", outConn, inConn, waitgroup)
-	waitgroup.Wait()
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go TransferTCPBytes("->", inConn, outConn, &wg)
+	go TransferTCPBytes("<-", outConn, inConn, &wg)
+	wg.Wait()
 	return nil
 }

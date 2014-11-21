@@ -182,7 +182,8 @@ func ValidateDockerSocket(socket string) error {
 		glog.Errorf("The docker socket: %s should start with unix://", socket)
 		return errors.New("Invalid docker socket")
 	}
-	filename := strings.TrimPrefix("unix://", socket)
+	filename := strings.TrimPrefix(socket, "unix:/")
+	glog.V(5).Infof("Looking for docker socket: %s", filename)
 	if filestat, err := os.Stat(filename); err != nil {
 		glog.Errorf("The docker socket: %s does not exists", socket)
 		return errors.New("The docker socket does not exist")
@@ -200,6 +201,10 @@ func GetDockerIPAddress(container *docker.Container) (string, error) {
 	} else {
 		return address, nil
 	}
+}
+
+func ContainerStringID(containerId string) string {
+	return containerId[:12]
 }
 
 /*

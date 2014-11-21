@@ -73,13 +73,18 @@ func (p *Proxier) StartServiceProxy() {
 			update := <-p.DiscoveryChannel
 			glog.V(2).Infof("Recieved discovery update event: %s, reloading the endpoints", update)
 			/* step: get a list of endpoints */
+			err := p.Discovery.Synchronize()
+			if err != nil {
+				glog.Errorf("Unable to synchronized the latest endpoints from discovery store, error: %s", err)
+				continue
+			}
 			endpoints, err := p.Discovery.ListEndpoints()
 			if err != nil {
-				glog.Errorf("Unable to pull the latest endpoints from discovery store, error: %s", err)
+				glog.Errorf("Unable to pull latest endpoints from discovery store, error: %s", err)
 				continue
 			}
 			p.LoadBalancer.UpdateEndpoints(&p.Service, endpoints)
-			glog.V(3).Infof("Updated the load balancer with the latest endpoints")
+			glog.V(3).Infof("Updated the load balancer with the latest endpoints: %V", endpoints)
 		}
 	}(p)
 }

@@ -33,29 +33,17 @@ import (
 
 var endpointDialTimeout = []time.Duration{1, 2, 4, 8}
 
-func NewProxyService(config *config.Configuration, service services.Service) (ProxyService, error) {
+func NewProxyService(cfg *config.Configuration, service services.Service) (ProxyService, error) {
 	glog.V(5).Infof("Creating new proxy service for: %s", service)
-	proxy := new(Proxier)
-	proxy.Service = service
-
-	/* step: create discovery channel for this service */
-	proxy.DiscoveryChannel = make(discovery.DiscoveryStoreChannel, 10)
-
+	proxier := new(Proxier)
+	proxier.Service = service
 	/* step: create a load balancer for the service */
 	balancer, err := NewLoadBalancer("rr")
 	if err != nil {
 		glog.Errorf("Unable to create a load balancer for service: %s, error: %s", service, err)
 		return nil, err
 	}
-	proxy.LoadBalancer = balancer
-
-	/* step: create a service discovery agent on this service */
-	discovery, err := discovery.NewDiscoveryService(config, service)
-	if err != nil {
-		glog.Errorf("Unable to create a discovery store for service: %s, error: %s", service, err)
-		return nil, err
-	}
-	proxy.Discovery = discovery
+	proxier.LoadBalancer = balancer
 
 	/* step: create a proxy socket for this service */
 	socket, err := NewProxySocket(service.Protocol, service.Port)
@@ -63,8 +51,36 @@ func NewProxyService(config *config.Configuration, service services.Service) (Pr
 		glog.Errorf("Unable to create a proxy socket for service: %s, error: %s", service, err)
 		return nil, err
 	}
-	proxy.Socket = socket
-	return proxy, nil
+	proxier.Socket = socket
+
+	/* step: create the discovery agent */
+	err = InitializeProxyDiscoveryService(cfg, proxier)
+	if err != nil {
+		glog.Errorf("Unable to initialize a discovery agent on the service: %s", proxier.Service)
+		return nil, err
+	}
+	return proxier, nil
+}
+
+func InitializeProxyDiscoveryService(cfg *config.Configuration, px *Proxier) error {
+	glog.Infof("Engaging the disvovery service for proxy")
+	/* step: create a service discovery agent on this service */
+	px.DiscoveryChannel = make(discovery.DiscoveryStoreChannel, 10)
+	discovery, err := discovery.NewDiscoveryService(cfg, px.Service)
+	if err != nil {
+		glog.Errorf("Unable to create a discovery store for service: %s, error: %s", px.Service, err)
+		return err
+	}
+	px.Discovery = discovery
+	/* step: attempt to synchronize the endpoints now */
+	err = px.Discovery.Synchronize()
+	if err != nil {
+		glog.Errorf("Failed to perform initial synchronization of endpoints, error: %s", err)
+	}
+	/* step: start the watcher routine */
+	glog.V(3).Infof("Starting the discovery endpoint watch, service: %s", px.Service)
+	px.Discovery.WatchEndpoints(px.DiscoveryChannel)
+	return nil
 }
 
 func NewProxySocket(protocol services.ServiceProtocol, port int) (ProxySocket, error) {

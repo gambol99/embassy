@@ -33,9 +33,10 @@ const (
 type DiscoveryStoreChannel chan services.Service
 
 type DiscoveryStore interface {
+	ShutdownDiscovery() error
 	ListEndpoints() ([]services.Endpoint, error)
 	WatchEndpoints(channel DiscoveryStoreChannel)
-	Synchronize(*services.Service) error
+	Synchronize() error
 }
 
 type DiscoveryStoreService struct {
@@ -51,27 +52,30 @@ type DiscoveryStoreProvider interface {
 	Watch(*services.Service)
 }
 
-func NewDiscoveryService(config *config.Configuration, si services.Service) (DiscoveryStore, error) {
+func NewDiscoveryService(cfg *config.Configuration, si services.Service) (DiscoveryStore, error) {
 	glog.Infof("Creating a new discovery agent for service: %s", si)
 	/* step: check if the store provider is supported */
-	if !IsDiscoveryStore(config.DiscoveryURI) {
+	if !IsDiscoveryStore(cfg.DiscoveryURI) {
 		return nil, errors.New("The backend discovery store specified is not supported")
 	}
 	var provider DiscoveryStoreProvider
 	var err error
 	discovery := new(DiscoveryStoreService)
 	discovery.Service = si
-	discovery.Config = config
+	discovery.Config = cfg
 	discovery.Endpoints = make([]services.Endpoint, 0)
 
 	/* step: create the backend provioder */
-	switch config.DiscoveryURI {
+	switch cfg.GetDiscoveryURI().Scheme {
 	case "etcd":
-		glog.Infof("Using Etcd as discovery backend, uri: %s", config.DiscoveryURI)
-		provider, err = NewEtcdStore(config)
+		glog.Infof("Using Etcd as discovery backend, uri: %s", cfg.DiscoveryURI)
+		provider, err = NewEtcdStore(cfg)
 	case "consul":
-		glog.Infof("Using Consul as discovery backend, uri: %s", config.DiscoveryURI)
-		provider, err = NewConsulStore(config)
+		glog.Infof("Using Consul as discovery backend, uri: %s", cfg.DiscoveryURI)
+		provider, err = NewConsulStore(cfg)
+	default:
+		glog.Errorf("The discovery backend %s is not supported, please check usage", cfg.DiscoveryURI)
+		return nil, errors.New("Invalid discovery backend")
 	}
 	if err != nil {
 		glog.Errorf("Unable to initialize the Etcd backend store, error: %s", err)
@@ -88,18 +92,23 @@ func (ds *DiscoveryStoreService) ListEndpoints() (endpoints []services.Endpoint,
 	return ds.Endpoints, nil
 }
 
-func (ds *DiscoveryStoreService) Synchronize(service *services.Service) error {
-	glog.V(3).Infof("Resynchronizing the endpoints for service: %s", service)
+func (ds DiscoveryStoreService) ShutdownDiscovery() error {
+
+	return nil
+}
+
+func (ds *DiscoveryStoreService) Synchronize() error {
+	glog.V(3).Infof("Resynchronizing the endpoints for service: %s", ds.Service)
 	ds.Lock()
 	defer ds.Unlock()
-	endpoints, err := ds.Store.List(service)
+	endpoints, err := ds.Store.List(&ds.Service)
 	if err != nil {
-		glog.Errorf("Attempt to resynchronize the endpoints failed for service: %s, error: %s", service, err)
+		glog.Errorf("Attempt to resynchronize the endpoints failed for service: %s, error: %s", ds.Service, err)
 		return errors.New("Failed to resync the endpoints")
 	}
 	/* step: we register any new endpoints - using the endpoint id as key into the map */
 	ds.Endpoints = endpoints
-	glog.V(4).Infof("Updating the endpoints for service: %s", service)
+	glog.V(4).Infof("Updating the endpoints for service: %s", ds.Service)
 	return nil
 }
 

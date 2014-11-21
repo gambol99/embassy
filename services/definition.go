@@ -38,8 +38,8 @@ type BackendDefiniton struct {
 }
 
 var (
-	BD_DEFINITION    = regexp.MustCompile(`[[:alnum:]\.-]*(\[[[:alnum:],]+\])?;[0-9]+\/(tcp|udp)(;((.*)=(.*)){1,})?;?`)
-	BD_SERVICE_NAME  = regexp.MustCompile(`(^[[:alnum:]\.-]*)`)
+	BD_DEFINITION    = regexp.MustCompile(`[[:alnum:]\/\*\.-]*(\[[[:alnum:],]+\])?;[0-9]+\/(tcp|udp)(;((.*)=(.*)){1,})?;?`)
+	BD_SERVICE_NAME  = regexp.MustCompile(`(^[[:alnum:]\/\*\.-]*)`)
 	BD_SERVICE_PORT  = regexp.MustCompile(`([0-9]+)`)
 	BD_SERVICE_PROTO = regexp.MustCompile(`\/(tcp|udp)`)
 	BD_SERVICE_TAGS  = regexp.MustCompile(`\[(.*)\]`)
