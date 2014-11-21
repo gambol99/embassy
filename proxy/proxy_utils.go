@@ -34,7 +34,10 @@ import (
 var endpointDialTimeout = []time.Duration{1, 2, 4, 8}
 
 func NewProxyService(config *config.Configuration, service services.Service) (ProxyService, error) {
+	glog.V(5).Infof("Creating new proxy service for: %s", service)
 	proxy := new(Proxier)
+	proxy.Service = service
+
 	/* step: create discovery channel for this service */
 	proxy.DiscoveryChannel = make(discovery.DiscoveryStoreChannel, 10)
 

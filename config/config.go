@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	socket, discovery, iface, fixed *string
+	socket, discovery, iface, fixed_backend *string
 )
 
 func init() {

@@ -20,6 +20,7 @@ import (
 	"errors"
 
 	"github.com/gambol99/embassy/services"
+	"github.com/golang/glog"
 )
 
 type LoadBalancer interface {
@@ -34,6 +35,7 @@ const (
 )
 
 func NewLoadBalancer(name string) (LoadBalancer, error) {
+	glog.V(5).Infof("Creating new load balancer: %s", name)
 	if name == "" {
 		name = DEFAULT_BALANCER_NAME
 	}

@@ -24,16 +24,6 @@ import (
 	"github.com/golang/glog"
 )
 
-func ProxyServiceLookup(request services.Service) (*proxy.ProxyService, bool) {
-
-	return nil, false
-}
-
-func CreateProxy(request services.Service) (*proxy.ProxyService, error) {
-
-	return nil, nil
-}
-
 func main() {
 	flag.Parse()
 	configuration := config.NewConfiguration()
@@ -46,25 +36,36 @@ func main() {
 
 	/* step: create a backend service provider */
 	channel := make(services.ServiceStoreChannel, 3)
+	proxies := make(map[services.ServiceID]proxy.ProxyService)
+
+	glog.V(5).Infof("Attempting to create a new services store")
 	store, err := services.NewServiceStore(configuration, channel)
 	if err != nil {
 		glog.Fatalf("Unable to create the backend request service, error: %s", err)
 	}
+
 	/* step: start the discovery process */
 	if err := store.DiscoverServices(); err != nil {
 		glog.Fatalf("Unable to start the discovery services, error: %s", err)
 	}
 	glog.V(3).Infof("Starting the services event loop")
+
 	for {
 		service_request := <-channel
-		glog.V(2).Info("%s: received a backend service request: %s", config.ProgName(), service_request)
+		glog.V(2).Infof("Received a backend service request: %s", service_request)
 		/* step: check if this is a duplicate request */
-		if proxy, found := ProxyServiceLookup(service_request); found {
-			glog.Errorf("%s: backend service request invalid, error: %s", config.ProgName(), err)
-			continue
+		if proxier, found := proxies[service_request.ID]; found {
+			glog.Infof("Service request: %s already proxied by: %s", service_request, proxier)
 		} else {
-			glog.Errorf("%s: we need to create new proxy for service: %s", config.ProgName(), service_request)
-			var _ = proxy
+			glog.Infof("Service request: %s new proxy, creating now", service_request)
+			proxier, err := proxy.NewProxyService(configuration, service_request)
+			if err != nil {
+				glog.Errorf("Failed to create proxy service for %s", service_request)
+				continue
+			}
+			proxies[service_request.ID] = proxier
+			proxier.StartServiceProxy()
+			glog.Infof("Successfully created new proxy for service")
 			var _ = store
 		}
 	}

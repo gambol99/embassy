@@ -17,8 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"errors"
-
 	"github.com/gambol99/embassy/config"
 	"github.com/golang/glog"
 )
@@ -32,9 +30,13 @@ type ServiceStore interface {
 func NewServiceStore(config *config.Configuration, channel ServiceStoreChannel) (ServiceStore, error) {
 	/* step: has the backend been hardcoded on the command line, if so we use a fixed backend service */
 	glog.V(5).Infof("Creating services store, configuration: %V", config)
-	if config.FixedBackend {
+	if config.FixedBackend != "" {
 		glog.V(1).Infof("Using Fixed Backend service: %s", config.FixedBackend)
-		return nil, errors.New("Fixed Backend service is not presently supported")
+		if service, err := NewFixedServiceStore(config, channel); err != nil {
+			glog.Fatalf("Unable to create the fixed backend service, error: %s", err)
+		} else {
+			return service, nil
+		}
 	} else {
 		glog.V(1).Infof("Using Docker Backend service, socket: %s", config.DockerSocket)
 		if service, err := NewDockerServiceStore(config, channel); err != nil {

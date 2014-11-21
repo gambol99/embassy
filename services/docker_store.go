@@ -182,14 +182,11 @@ func ValidateDockerSocket(socket string) error {
 		glog.Errorf("The docker socket: %s should start with unix://", socket)
 		return errors.New("Invalid docker socket")
 	}
-	filename = strings.TrimPrefix("unix://", socket)
-	filestat, err := os.Stat(filename)
-	if err == nil {
+	filename := strings.TrimPrefix("unix://", socket)
+	if filestat, err := os.Stat(filename); err != nil {
 		glog.Errorf("The docker socket: %s does not exists", socket)
 		return errors.New("The docker socket does not exist")
-	}
-	/* check its a socket */
-	if !filestat & os.ModeSocket {
+	} else if filestat.Mode() == os.ModeSocket {
 		glog.Errorf("The docker socket: %s is not a unix socket, please check", socket)
 		return errors.New("The docker socket is not a named unix socket")
 	}

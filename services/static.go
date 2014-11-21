@@ -37,7 +37,7 @@ func NewFixedServiceStore(config *config.Configuration, channel ServiceStoreChan
 	definition.Definition = config.FixedBackend
 	service, err := definition.GetService()
 	if err != nil {
-		glog.Errorf("The fixed backend is invalid, error: %s")
+		glog.Errorf("The fixed backend is invalid, error: %s", err)
 		return nil, errors.New("The fixed backend definition is invalid, please check")
 	}
 	return &FixebBackendStore{service, channel}, nil

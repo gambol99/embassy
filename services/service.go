@@ -39,7 +39,7 @@ type Service struct {
 }
 
 func (s Service) String() string {
-	return fmt.Sprintf("name: %s, port: %d, tags: %s", s.Name, s.Port, strings.Join(s.Tags, "|"))
+	return fmt.Sprintf("name: %s[%s]:%s/%s", s.Name, strings.Join(s.Tags, "|"), s.Port, s.ProtocolName())
 }
 
 func (s Service) ProtocolName() string {

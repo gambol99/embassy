@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	//"github.com/golang/glog"
+	"github.com/golang/glog"
 )
 
 /*
@@ -38,14 +38,15 @@ type BackendDefiniton struct {
 }
 
 var (
-	BD_DEFINITION    = regexp.MustCompile(`^[[:alnum:]\.-]*(\[[[:alnum:],]+\])?;[0-9]+\/(tcp|udp)(;((.*)=(.*)){1,})?;?`)
+	BD_DEFINITION    = regexp.MustCompile(`[[:alnum:]\.-]*(\[[[:alnum:],]+\])?;[0-9]+\/(tcp|udp)(;((.*)=(.*)){1,})?;?`)
 	BD_SERVICE_NAME  = regexp.MustCompile(`(^[[:alnum:]\.-]*)`)
 	BD_SERVICE_PORT  = regexp.MustCompile(`([0-9]+)`)
 	BD_SERVICE_PROTO = regexp.MustCompile(`\/(tcp|udp)`)
 	BD_SERVICE_TAGS  = regexp.MustCompile(`\[(.*)\]`)
 )
 
-func (b BackendDefiniton) IsValid() (matched bool) {
+func (b BackendDefiniton) IsValid() bool {
+	glog.V(6).Infof("Validating the service definition: %s", b.Definition)
 	return BD_DEFINITION.MatchString(b.Definition)
 }
 
@@ -77,8 +78,10 @@ func (b BackendDefiniton) GetService() (service Service, err error) {
 		if proto := BD_SERVICE_PROTO.FindStringSubmatch(Section(1))[0]; proto == "tcp" {
 			service.Protocol = TCP
 		} else {
-			service.Protocol = UDP
+			service.Protocol = TCP
 		}
+		return service, nil
+	} else {
+		return service, errors.New("Invalid service definition, does not match requirements")
 	}
-	return service, errors.New("Invalid service definition, does not match requirements")
 }

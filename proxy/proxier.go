@@ -61,11 +61,14 @@ func (p *Proxier) GetEndpoints() ([]services.Endpoint, error) {
 func (p *Proxier) StartServiceProxy() {
 	/* step: starting listening on the service port */
 	go func(px *Proxier) {
-		glog.Infof("Starting proxy service: %s", p.Service)
-		px.Socket.ProxyService(&px.Service, px.LoadBalancer, px.Discovery)
+		glog.Infof("Starting proxy service: %s", px.Service)
+		if err := px.Socket.ProxyService(&px.Service, px.LoadBalancer, px.Discovery); err != nil {
+			glog.Errorf("Failed to start the proxy for service; %s, error: %s", px.Service, err)
+		}
 	}(p)
 	/* step: listen out for events from the channel */
 	go func(p *Proxier) {
+		glog.V(5).Infof("Proxy: %s, waiting on discovery events", p)
 		for {
 			update := <-p.DiscoveryChannel
 			glog.V(2).Infof("Recieved discovery update event: %s, reloading the endpoints", update)

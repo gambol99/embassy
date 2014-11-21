@@ -30,6 +30,7 @@ type TCPProxySocket struct {
 }
 
 func (tcp *TCPProxySocket) ProxyService(service *services.Service, balancer LoadBalancer, discovery discovery.DiscoveryStore) error {
+	glog.V(5).Infof("TCP Proxy Service, service: %s", service)
 	for {
 		/* wait for a connection */
 		connection, err := tcp.Accept()
