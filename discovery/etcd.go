@@ -24,10 +24,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/services"
+	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
@@ -37,73 +39,69 @@ type EtcdServiceDocument struct {
 	Tags      []string `json:"tags"`
 }
 
-const (
-	DOCUMENT_IPADDRESS = "ipaddress"
-	DOCUMENT_PORT      = "port"
-	DOCUMENT_TAGS      = "tags"
-)
+func NewEtcdDocument(data []byte) (EtcdServiceDocument, error) {
+	document := &EtcdServiceDocument{}
+	if err := json.Unmarshal(data, &document); err != nil {
+		glog.Errorf("Unable to decode the service document: %s", document)
+		return nil, err
+	}
+	/* step: check if the document is valid */
+	if err := document.IsValid(); err != nil {
+		return nil, err
+	}
+	return document, nil
+}
+
+func (e EtcdServiceDocument) IsValid() error {
+	if e.IPaddress == "" || e.Port == "" {
+		return endpoint, errors.New("Invalid service document, does not contain a ipaddress and port")
+	}
+	return utils.ConvertToEndpoint(e.IPaddress, e.Port), nil
+}
 
 type EtcdDiscoveryService struct {
 	client    *etcd.Client
 	waitIndex uint64
 }
 
-func NewEtcdStore(config *config.Configuration) (DiscoveryStoreProvider, error) {
-	glog.V(3).Infof("Creating a new Etcd client")
-	uri := config.GetDiscoveryURI()
-	urls := make([]string, 0)
-	if uri.Host != "" {
-		urls = append(urls, "http://"+uri.Host)
-	}
-	return &EtcdDiscoveryService{client: etcd.NewClient(urls)}, nil
+const ETCD_PREFIX = "etcd://"
+
+func NewEtcdStore(cfg *config.Configuration) (DiscoveryStoreProvider, error) {
+	glog.V(3).Infof("Creating a Etcd client, hosts: %s", cfg.DiscoveryURI)
+	/* step: get the etcd nodes from the dicovery uri */
+	return &EtcdDiscoveryService{
+		etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI))}, nil
 }
 
 func (e *EtcdDiscoveryService) List(si *services.Service) ([]services.Endpoint, error) {
 	list := make([]services.Endpoint, 0)
-	glog.V(5).Infof("Listing the nodes for service: %s, path: %s", si, si.Name)
-	paths := make([]string, 0)
+	glog.V(5).Infof("Listing the container nodes for service: %s, path: %s", si, si.Name)
+
 	/* step: we get a listing of all the nodes under or branch */
-	paths, err := EtcdPathWalker(e.client, string(si.Name), &paths)
+	paths := make([]string, 0)
+	paths, err := e.Paths(string(si.Name), &paths)
 	if err != nil {
-		glog.Errorf("Failed to generate a list of the tree nodes, error: %s", err)
+		glog.Errorf("Failed to walk the paths for service: %s, error: %s", si, err)
 		return nil, err
 	}
+
 	/* step: iterate the nodes and generate the services documents */
-	for _, path := range paths {
-		glog.V(5).Infof("Retrieving the service document from path: %s", path)
-		response, err := e.client.Get(path, false, false)
+	for _, service_path := range paths {
+		glog.V(5).Infof("Retrieving service document on path: %s", service_path)
+		response, err := e.client.Get(service_path, false, false)
 		if err != nil {
-			glog.Errorf("Failed to retrieve the service document, path: %s, error: %s", path, err)
+			glog.Errorf("Failed to retrieve service document at path: %s, error: %s", service_path, err)
 			continue
 		}
 		/* step: convert the document into a record */
-		if endpoint, err := e.GetServiceDocument([]byte(response.Node.Value)); err == nil {
-			glog.V(5).Infof("Found endpoint, service: %s, endpoint: %s", si, endpoint)
-			list = append(list, endpoint)
+		document, err := NewEtcdDocument([]byte(response.Node.Value))
+		if err != nil {
+			glog.Errorf("Unable to convert the response to service document, error: %s", err)
+			continue
 		}
+		list = append(list, document)
 	}
 	return list, nil
-}
-
-/*
-	Take the node value which should have json data, convert to a service document and attempt to extract the
-	required fields
-*/
-func (e *EtcdDiscoveryService) GetServiceDocument(document []byte) (services.Endpoint, error) {
-	glog.V(5).Infof("Attempting to decode the service document: %s", document)
-	service := &EtcdServiceDocument{}
-	if err := json.Unmarshal(document, &service); err != nil {
-		glog.Errorf("Unable to decode the service document: %s", document)
-		return "", err
-	}
-	/* step: validate the service document and format it */
-	endpoint, err := IsValidServiceDocument(service)
-	if err != nil {
-		glog.Errorf("Invalid service document, error: %s", err)
-		return "", err
-	}
-	glog.V(5).Infof("Service document decoded into endpoint: %s", endpoint)
-	return endpoint, nil
 }
 
 func (e *EtcdDiscoveryService) Watch(si *services.Service) {
@@ -114,28 +112,29 @@ func (e *EtcdDiscoveryService) Watch(si *services.Service) {
 	}
 }
 
-func EtcdPathWalker(client *etcd.Client, path string, paths *[]string) ([]string, error) {
+func (e *EtcdDiscoveryService) Paths(path string, paths *[]string) ([]string, error) {
 	response, err := client.Get(path, false, true)
 	if err != nil {
 		return nil, errors.New("Unable to complete walking the tree" + err.Error())
 	}
 	for _, node := range response.Node.Nodes {
 		if node.Dir {
-			EtcdPathWalker(client, node.Key, paths)
+			Paths(node.Key, paths)
 		} else {
-			glog.Infof("Found node: %s appeding now", node.Key)
+			glog.Infof("Found service container: %s appeding now", node.Key)
 			*paths = append(*paths, node.Key)
 		}
 	}
 	return *paths, nil
 }
 
-func IsValidServiceDocument(document *EtcdServiceDocument) (endpoint services.Endpoint, err error) {
-	if document.IPaddress == "" {
-		return endpoint, errors.New("Invalid service registration, document does not contain a ipaddress")
+func GetEtcdHosts(uri string) []string {
+	hosts := make([]string, 0)
+	for etcd_host := range strings.Split(uri, ",") {
+		if strings.HasSuffix(etcd_host, ETCD_PREFIX) {
+			etcd_host = strings.TrimPrefix(etcd_host, ETCD_PREFIX)
+		}
+		hosts = append(hosts, "http://"+etcd_host)
 	}
-	if document.Port == "" {
-		return endpoint, errors.New("Invalid service registration, document does not contain a port")
-	}
-	return services.Endpoint(fmt.Sprintf("%s:%s", document.IPaddress, document.Port)), nil
+	return hosts
 }

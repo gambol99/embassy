@@ -18,6 +18,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 
@@ -57,6 +58,10 @@ func GetLocalIPAddress(interface_name string) (string, error) {
 		}
 	}
 	return "", errors.New("Unable to determine or find the interface")
+}
+
+func ConvertToEndpoint(host, port string) services.Endpoint {
+	return Endpoint(fmt.Sprintf("%s:%s", host, port))
 }
 
 func GetHostname() (string, error) {
