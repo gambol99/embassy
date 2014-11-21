@@ -20,6 +20,8 @@ import (
 	"flag"
 	"net/url"
 	"os"
+
+	"github.com/gambol99/embassy/utils"
 )
 
 var (
@@ -53,6 +55,7 @@ type Configuration struct {
 	FixedBackend  string
 	BackendPrefix string
 	Interface     string
+	HostName      string
 }
 
 func (s Configuration) GetDiscoveryURI() *url.URL {
@@ -71,10 +74,11 @@ func NewConfiguration() *Configuration {
 	configuration.BackendPrefix = "BACKEND_"
 	configuration.Interface = *iface
 	configuration.FixedBackend = *fixed_backend
-	/* step: check if the command line has a fixed backend */
-	if length := len(os.Args); length == 2 {
-		configuration.FixedBackend = os.Args[1]
+	hostname, err := GetHostname()
+	if err != nil {
+		return nil, err
 	}
+	configuration.HostName = hostname
 	return configuration
 }
 

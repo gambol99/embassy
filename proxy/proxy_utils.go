@@ -140,5 +140,7 @@ func TransferTCPBytes(direction string, dest, src net.Conn, waitgroup *sync.Wait
 	if err != nil {
 		glog.Errorf("I/O error: %v", err)
 	}
+	src.Close()
+	dest.Close()
 	glog.V(4).Infof("Copied %d bytes %s: %s -> %s", n, direction, src.RemoteAddr(), dest.RemoteAddr())
 }

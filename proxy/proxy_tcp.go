@@ -50,7 +50,6 @@ func (p *TCPProxySocket) HandleTCPConnection(service *services.Service, inConn n
 	outConn, err := TryConnect(service, balancer, discovery)
 	defer func() {
 		glog.V(5).Infof("Closing the connection from: %v", inConn.RemoteAddr())
-		inConn.Close()
 	}()
 	/* step: set some deadlines */
 	inConn.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -58,7 +57,6 @@ func (p *TCPProxySocket) HandleTCPConnection(service *services.Service, inConn n
 		glog.Errorf("Failed to connect to balancer: %v", err)
 		return err
 	}
-	defer outConn.Close()
 	/* step: we spin up to async routines to handle the byte transfer */
 	var wg sync.WaitGroup
 	wg.Add(2)

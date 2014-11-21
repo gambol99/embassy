@@ -58,3 +58,12 @@ func GetLocalIPAddress(interface_name string) (string, error) {
 	}
 	return "", errors.New("Unable to determine or find the interface")
 }
+
+func GetHostname() (string, error) {
+	hostname, err := net.Hostname()
+	if err != nil {
+		glog.Errorf("Unable to get the hostname of the box, error: %s", err)
+		return "", err
+	}
+	return hostname, nil
+}

@@ -194,6 +194,12 @@ func ValidateDockerSocket(socket string) error {
 	return nil
 }
 
+/*
+
+
+*/
+func IsProxyContained()
+
 func GetDockerIPAddress(container *docker.Container) (string, error) {
 	if address := container.NetworkSettings.IPAddress; address == "" {
 		glog.Infof("The container: %s does not have an ipaddress", container.ID)
