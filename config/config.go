@@ -25,14 +25,16 @@ import (
 )
 
 var (
-	socket, discovery, iface, fixed_backend *string
+	cfg_socket, cfg_discovery, cfg_iface, cfg_fixed_backend *string
+	cfg_association *bool
 )
 
 func init() {
-	socket = flag.String("docker", "unix://var/run/docker.sock", "the location of the docker socket")
-	discovery = flag.String("discovery", "etcd://localhost:4001", "the discovery backend to pull the services from")
-	iface = flag.String("interface", "eth0", "the interface to take the proxy address from")
-	fixed_backend = flag.String("backend", "", "allow you specifiy a fixed backend service")
+	cfg_socket = flag.String("docker", "unix://var/run/docker.sock", "the location of the docker socket")
+	cfg_discovery = flag.String("discovery", "etcd://localhost:4001", "the discovery backend to pull the services from")
+	cfg_iface = flag.String("interface", "eth0", "the interface to take the proxy address from")
+	cfg_fixed_backend = flag.String("backend", "", "allow you specifiy a fixed backend service")
+	cfg_association = flag.Bool("association",true,"whether or not to check association of the container to the proxy" )
 }
 
 type Configuration struct {
@@ -40,6 +42,7 @@ type Configuration struct {
 	DiscoveryURI  string
 	FixedBackend  string
 	BackendPrefix string
+	Association   bool
 	IPAddress     string
 	Interface     string
 	HostName      string
@@ -56,12 +59,12 @@ func (s Configuration) ValidConfiguration() error {
 
 func NewConfiguration() *Configuration {
 	configuration := new(Configuration)
-	configuration.DiscoveryURI = *discovery
-	configuration.DockerSocket = *socket
+	configuration.DiscoveryURI = *cfg_discovery
+	configuration.DockerSocket = *cfg_socket
 	configuration.BackendPrefix = "BACKEND_"
-	configuration.Interface = *iface
-
-	configuration.FixedBackend = *fixed_backend
+	configuration.Interface = *cfg_iface
+	configuration.Association = *cfg_association
+	configuration.FixedBackend = *cfg_fixed_backend
 	hostname, err := utils.GetHostname()
 	if err != nil {
 		glog.Errorf("Unable to get the hostname of the box, error: %s", err)

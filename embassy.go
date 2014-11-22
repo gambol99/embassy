@@ -94,10 +94,13 @@ func ParseOptions() *config.Configuration {
 func LoadServicesStore(cfg *config.Configuration) (services.ServiceStore, services.ServiceStoreChannel) {
 	glog.V(5).Infof("Attempting to create a new services store")
 	channel := make(services.ServiceStoreChannel, 10)
-	store, err := services.NewServiceStore(cfg, channel)
-	Assert(err, "Unable to create the backend request service")
+	store := services.NewServiceStore(cfg)
+	/* step: add the docker provider */
+	services.AddDockerServiceStore(store, cfg)
+	/* step: add ourselves as a listener */
+	store.AddServiceListener(channel)
 	/* step: start the discovery process */
-	Assert(store.DiscoverServices(), "Unable to start the discovery services")
+	Assert(store.FindServices(), "Unable to start the discovery services")
 	return store, channel
 }
 

@@ -33,7 +33,7 @@ import (
   BACKEND_REDIS_MASTER=/services/prod/redis/master/6379/*;PORT;OPTION=VALUE,;
 */
 
-type BackendDefiniton struct {
+type BackendDefinition struct {
 	Name, Definition string
 }
 
@@ -45,19 +45,19 @@ var (
 	BD_SERVICE_TAGS  = regexp.MustCompile(`\[(.*)\]`)
 )
 
-func (b BackendDefiniton) IsValid() bool {
+func (b BackendDefinition) IsValid() bool {
 	glog.V(6).Infof("Validating the service definition: %s", b.Definition)
 	return BD_DEFINITION.MatchString(b.Definition)
 }
 
-func (b BackendDefiniton) GetSection() func(int) string {
+func (b BackendDefinition) GetSection() func(int) string {
 	var sections []string = strings.Split(b.Definition, ";")
 	return func(index int) string {
 		return sections[index]
 	}
 }
 
-func (b BackendDefiniton) GetService() (service Service, err error) {
+func (b BackendDefinition) GetService() (service Service, err error) {
 	if matched := b.IsValid(); matched {
 		var Section func(int) string = b.GetSection()
 		service_name := Section(0)

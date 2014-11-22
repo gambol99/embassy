@@ -41,7 +41,6 @@ func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []
 	lb.Lock()
 	defer lb.Unlock()
 	if lb.NextEndpointIndex > len(endpoints)-1 {
-		glog.V(5).Infof("Load (RR) Resetting the index back to begining")
 		lb.NextEndpointIndex = 0
 	}
 	endpoint := endpoints[lb.NextEndpointIndex]
