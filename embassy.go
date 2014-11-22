@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawardene All rights reserved.
+Copyright 2014 Rohith All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@ limitations under the License.
 package main
 
 import (
-	"flag"
 	"errors"
+	"flag"
 	"runtime/debug"
 
 	"github.com/gambol99/embassy/config"
@@ -35,7 +35,7 @@ func main() {
 	configuration := ParseOptions()
 	/* step: create a backend service provider */
 	store, channel := LoadServicesStore(configuration)
-	glog.Infof("Starting the Embassy Proxy Service, local ip: %s, hostname: %s", configuration.IPAddress, configuration.HostName )
+	glog.Infof("Starting the Embassy Proxy Service, local ip: %s, hostname: %s", configuration.IPAddress, configuration.HostName)
 
 	var _ = store
 	for {
@@ -44,7 +44,7 @@ func main() {
 		if proxier := FindProxyService(request); proxier == nil {
 			proxier, err := CreateServiceProxy(configuration, request)
 			if err != nil {
-				glog.Errorf("Unable to create the proxy service for: %s", request )
+				glog.Errorf("Unable to create the proxy service for: %s", request)
 				continue
 			}
 			glog.Infof("Proxy Service: %s", proxier)
@@ -66,7 +66,7 @@ func FindProxyService(si services.Service) proxy.ProxyService {
 func CreateServiceProxy(cfg *config.Configuration, si services.Service) (proxier proxy.ProxyService, err error) {
 	defer func() {
 		if recover := recover(); recover != nil {
-			glog.Errorf("Failed to create a proxy service, error: %s, stack: %s", recover, debug.Stack() )
+			glog.Errorf("Failed to create a proxy service, error: %s, stack: %s", recover, debug.Stack())
 			proxier = nil
 			err = errors.New("Unable to create the proxy service")
 		}

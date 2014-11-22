@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawardene All rights reserved.
+Copyright 2014 Rohith All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -125,7 +125,7 @@ func TryConnect(service *services.Service, lb LoadBalancer, ds discovery.Discove
 		/* step: attempt to connect to the backend */
 		outConn, err := net.DialTimeout(service.ProtocolName(), string(endpoint), retryTimeout*time.Second)
 		if err != nil {
-			glog.Errorf("Failed to connect to backend service: %s, error: %s", endpoint, err )
+			glog.Errorf("Failed to connect to backend service: %s, error: %s", endpoint, err)
 			continue
 		}
 		return outConn, nil

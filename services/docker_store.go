@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawardene All rights reserved.
+Copyright 2014 Rohith All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ func NewDockerServiceStore(config *config.Configuration, channel ServiceStoreCha
 		return nil, err
 	}
 	/* step: create a docker client */
-	client, err := docker.NewClient(config.DockerSocket);
+	client, err := docker.NewClient(config.DockerSocket)
 	if err != nil {
 		glog.Errorf("Unable to create a docker client, error: %s", err)
 		return nil, err
@@ -120,7 +120,7 @@ func (r DockerServiceStore) InspectContainerServices(containerId string) (defini
 	/* step: grab the container */
 	if container, err := r.Docker.InspectContainer(containerId); err == nil {
 		/* step: we are ONLY concerned with containers that are linked to this proxy */
-		if associated  := r.IsAssociated(container); associated {
+		if associated := r.IsAssociated(container); associated {
 			glog.V(0).Infof("Container: %s linked to proxy, inspecting the services", containerId)
 			if environment, err := ContainerEnvironment(container.Config.Env); err == nil {
 				/* step; scan the runtime variables for backend links */
@@ -162,20 +162,20 @@ const (
 /*
 	A container is assumed to associated to the proxy if they has the same ip address as us or
 	the container is running in network mode container and we are the container
- */
+*/
 func (r DockerServiceStore) IsAssociated(container *docker.Container) bool {
 	/* step: does the docker have an ip address */
 	if docker_ipaddress := GetDockerIPAddress(container); docker_ipaddress != "" {
 		if docker_ipaddress == r.Config.IPAddress {
-			glog.V(2).Infof("Container: %s and proxy have the same ip address", container.ID )
+			glog.V(2).Infof("Container: %s and proxy have the same ip address", container.ID)
 			return true
 		}
 	} else {
 		/* step: is the container running in NetworkMode = container */
-		if network_mode := container.HostConfig.NetworkMode; strings.HasPrefix(network_mode, DOCKER_NETWORK_CONTAINER_PREFIX ) {
+		if network_mode := container.HostConfig.NetworkMode; strings.HasPrefix(network_mode, DOCKER_NETWORK_CONTAINER_PREFIX) {
 			// lets get the container this container is linked to and see if its us
-			container_name := strings.TrimPrefix(network_mode, DOCKER_NETWORK_CONTAINER_PREFIX )
-			glog.V(5).Infof("Container: %s running net:container mode, mapping into container: %s", container.ID, container_name )
+			container_name := strings.TrimPrefix(network_mode, DOCKER_NETWORK_CONTAINER_PREFIX)
+			glog.V(5).Infof("Container: %s running net:container mode, mapping into container: %s", container.ID, container_name)
 			if container_name == r.Config.HostName {
 				return true
 			}

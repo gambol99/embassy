@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawardene All rights reserved.
+Copyright 2014 Rohith All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import (
 	"flag"
 	"net/url"
 
-	"github.com/golang/glog"
 	"github.com/gambol99/embassy/utils"
+	"github.com/golang/glog"
 )
 
 var (
@@ -71,7 +71,7 @@ func NewConfiguration() *Configuration {
 	ipaddress, err := utils.GetLocalIPAddress(configuration.Interface)
 	if err != nil {
 		glog.Error("Unable to get the local ip address from interface: %s, error: %s",
-			configuration.Interface, err )
+			configuration.Interface, err)
 		return nil
 	}
 	configuration.IPAddress = ipaddress

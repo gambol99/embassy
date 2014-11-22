@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawardene All rights reserved.
+Copyright 2014 Rohith All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ func (ds *DiscoveryStoreService) WatchEndpoints(channel DiscoveryStoreChannel) {
 			glog.V(4).Infof("Waiting for endpoints on service: %s to change", ds.Service)
 			/* step: block and wait for something, anything to change */
 			if err := ds.Store.Watch(&ds.Service); err != nil {
-				time.Sleep(5 * time.Second )
+				time.Sleep(5 * time.Second)
 				continue
 			}
 			glog.V(4).Infof("Endpoints has changed for service: %s", ds.Service)

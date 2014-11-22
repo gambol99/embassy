@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Rohith Jayawardene All rights reserved.
+Copyright 2014 Rohith All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ const ETCD_PREFIX = "etcd://"
 func NewEtcdStore(cfg *config.Configuration) (DiscoveryStoreProvider, error) {
 	glog.V(3).Infof("Creating a Etcd client, hosts: %s", cfg.DiscoveryURI)
 	/* step: get the etcd nodes from the dicovery uri */
-	return &EtcdDiscoveryService{etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI)),0}, nil
+	return &EtcdDiscoveryService{etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI)), 0}, nil
 }
 
 func (e *EtcdDiscoveryService) List(si *services.Service) ([]services.Endpoint, error) {
