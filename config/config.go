@@ -19,7 +19,6 @@ package config
 import (
 	"flag"
 	"net/url"
-	"os"
 
 	"github.com/golang/glog"
 	"github.com/gambol99/embassy/utils"
@@ -34,20 +33,6 @@ func init() {
 	discovery = flag.String("discovery", "etcd://localhost:4001", "the discovery backend to pull the services from")
 	iface = flag.String("interface", "eth0", "the interface to take the proxy address from")
 	fixed_backend = flag.String("backend", "", "allow you specifiy a fixed backend service")
-}
-
-type ServiceOptions map[string]string
-
-func (s ServiceOptions) Get(key string) (value string, found bool) {
-	value, found = s[key]
-	return
-}
-
-func (s ServiceOptions) Has(key string) bool {
-	if _, found := s[key]; found {
-		return true
-	}
-	return false
 }
 
 type Configuration struct {
@@ -91,8 +76,4 @@ func NewConfiguration() *Configuration {
 	}
 	configuration.IPAddress = ipaddress
 	return configuration
-}
-
-func ProgName() string {
-	return os.Args[0]
 }

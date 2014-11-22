@@ -35,8 +35,7 @@ func main() {
 	configuration := ParseOptions()
 	/* step: create a backend service provider */
 	store, channel := LoadServicesStore(configuration)
-	glog.Infof("Starting the Embassy Proxy Service, local ip: %s, hostname: %s",
-		configuration.IPAddress, configuration.HostName )
+	glog.Infof("Starting the Embassy Proxy Service, local ip: %s, hostname: %s", configuration.IPAddress, configuration.HostName )
 
 	var _ = store
 	for {
