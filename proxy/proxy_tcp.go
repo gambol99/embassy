@@ -19,8 +19,7 @@ package proxy
 import (
 	"net"
 	"sync"
-	"time"
-
+	
 	"github.com/gambol99/embassy/discovery"
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
@@ -39,7 +38,7 @@ func (tcp *TCPProxySocket) ProxyService(service *services.Service, balancer Load
 			glog.Errorf("Accept connection failed: %s", err)
 			continue
 		}
-		glog.V(2).Infof("Accepted TCP connection from %v to %v", connection.RemoteAddr(), connection.LocalAddr())
+		glog.V(4).Infof("Accepted TCP connection from %v to %v", connection.RemoteAddr(), connection.LocalAddr())
 		/* step: attempt to connect to a backend in a goroutine */
 		go tcp.HandleTCPConnection(service, connection, balancer, discovery)
 	}
@@ -48,20 +47,19 @@ func (tcp *TCPProxySocket) ProxyService(service *services.Service, balancer Load
 func (p *TCPProxySocket) HandleTCPConnection(service *services.Service, inConn net.Conn, balancer LoadBalancer, discovery discovery.DiscoveryStore) error {
 	/* step: we try and connect to a backend */
 	outConn, err := TryConnect(service, balancer, discovery)
-	defer func() {
-		glog.V(5).Infof("Closing the connection from: %v", inConn.RemoteAddr())
-	}()
 	/* step: set some deadlines */
-	inConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	if err != nil {
 		glog.Errorf("Failed to connect to balancer: %v", err)
+		inConn.Close()
 		return err
 	}
 	/* step: we spin up to async routines to handle the byte transfer */
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go TransferTCPBytes("->", inConn, outConn, &wg)
-	go TransferTCPBytes("<-", outConn, inConn, &wg)
+	go TransferTCPBytes("->", inConn.(*net.TCPConn), outConn.(*net.TCPConn), &wg)
+	go TransferTCPBytes("<-", outConn.(*net.TCPConn), inConn.(*net.TCPConn), &wg)
 	wg.Wait()
+	inConn.Close()
+	outConn.Close()
 	return nil
 }

@@ -54,7 +54,7 @@ func (cs ConsulStore) List(si *services.Service) ([]services.Endpoint, error) {
 	return nil, nil
 }
 
-func (cs *ConsulStore) Watch(si *services.Service) {
+func (cs *ConsulStore) Watch(si *services.Service) error {
 	/*
 		if _, meta, err := cs.client.KV().Get(path, &consulapi.QueryOptions{WaitIndex: s.waitIndex}); err != nil {
 			glog.Errorf("Consul error: %s", err)
@@ -64,4 +64,5 @@ func (cs *ConsulStore) Watch(si *services.Service) {
 			return nil
 		}
 	*/
+	return nil
 }

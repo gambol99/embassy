@@ -12,13 +12,34 @@ An example passed in as a environment variable container starting up would be;
   or using etcd keys
   BACKEND_REDIS_SERVICE=/services/prod/redis.master[prod,stats];6379/tcp
 
+Docker Testing
+--------------
+
+Start up an etcd container for
+
+    # DOCKER_ID=$(docker run -d -e APP=etcd -e NAME=backend -P -e ENVIRONMENT=prod coreos/etcd)
+	# ETCD_PORT=$(docker port $DOCKER_ID 4001 | cut -d':' -f2)
+	# ETCD_HOST=$(hostname --ip-address)
+	# # Start up a service registration provider
+
+	# # Start up some services
+	# docker run -d -P -e ENVIRONMENT=prod -e NAME=apache eboraas/apache
+	# docker run -d -P -e ENVIRONMENT=prod -e NAME=apache eboraas/apache
+	
+
+Start the proxy inside the container
+
+
+
+
+
 Discovery Agent
 ===============
 
 Etcd Notes
 -----------
 
-The discovery agent will recusively retrieve all nodes under the branch. An example registration given below
+The discovery agent will recursively retrieve all nodes under the branch. An example registration given below
 
     /services/prod/apache/80/49173/e6d41829bd76   <- instance
     /services/prod/apache/80/49175

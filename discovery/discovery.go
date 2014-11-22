@@ -20,6 +20,7 @@ import (
 	"errors"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/services"
@@ -49,7 +50,7 @@ type DiscoveryStoreService struct {
 
 type DiscoveryStoreProvider interface {
 	List(*services.Service) ([]services.Endpoint, error)
-	Watch(*services.Service)
+	Watch(*services.Service) error
 }
 
 func NewDiscoveryService(cfg *config.Configuration, si services.Service) (DiscoveryStore, error) {
@@ -118,7 +119,10 @@ func (ds *DiscoveryStoreService) WatchEndpoints(channel DiscoveryStoreChannel) {
 		for {
 			glog.V(4).Infof("Waiting for endpoints on service: %s to change", ds.Service)
 			/* step: block and wait for something, anything to change */
-			ds.Store.Watch(&ds.Service)
+			if err := ds.Store.Watch(&ds.Service); err != nil {
+				time.Sleep(5 * time.Second )
+				continue
+			}
 			glog.V(4).Infof("Endpoints has changed for service: %s", ds.Service)
 			/* step: pull an updated list of the endpoints */
 			channel <- ds.Service

@@ -74,9 +74,9 @@ func NewConfiguration() *Configuration {
 	configuration.BackendPrefix = "BACKEND_"
 	configuration.Interface = *iface
 	configuration.FixedBackend = *fixed_backend
-	hostname, err := GetHostname()
+	hostname, err := utils.GetHostname()
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	configuration.HostName = hostname
 	return configuration

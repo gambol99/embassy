@@ -10,6 +10,8 @@
 *.so
 embassy
 stage/embassy
+embassy.iml
+.idea/
 
 # Folders
 _obj

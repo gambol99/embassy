@@ -21,7 +21,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fsouza/go-dockerclient"
+	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
@@ -198,7 +198,10 @@ func ValidateDockerSocket(socket string) error {
 
 
 */
-func IsProxyContained()
+func IsProxyContained() bool {
+
+	return false
+}
 
 func GetDockerIPAddress(container *docker.Container) (string, error) {
 	if address := container.NetworkSettings.IPAddress; address == "" {

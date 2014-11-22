@@ -18,17 +18,19 @@ package proxy
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
 type LoadBalancerRR struct {
+	sync.Mutex
 	NextEndpointIndex int
 }
 
 func NewLoadBalancerRR() LoadBalancer {
-	return &LoadBalancerRR{}
+	return new(LoadBalancerRR)
 }
 
 func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (services.Endpoint, error) {
@@ -36,6 +38,8 @@ func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []
 	if len(endpoints) <= 0 {
 		return "", errors.New("The service does not have any endpoints")
 	}
+	lb.Lock()
+	defer lb.Unlock()
 	if lb.NextEndpointIndex > len(endpoints)-1 {
 		glog.V(5).Infof("Load (RR) Resetting the index back to begining")
 		lb.NextEndpointIndex = 0

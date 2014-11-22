@@ -18,8 +18,8 @@ package utils
 
 import (
 	"errors"
-	"fmt"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/golang/glog"
@@ -39,7 +39,6 @@ func GetLocalIPAddress(interface_name string) (string, error) {
 		return "", err
 	} else {
 		for _, iface := range interfaces {
-			glog.V(5).Infof("Pulling the ip addresses, interface: %s", iface.Name)
 			/* step: get only the interface we're interested in */
 			if iface.Name == interface_name {
 				glog.V(6).Infof("Found interface: %s, grabbing the ip addresses", iface.Name)
@@ -60,12 +59,8 @@ func GetLocalIPAddress(interface_name string) (string, error) {
 	return "", errors.New("Unable to determine or find the interface")
 }
 
-func ConvertToEndpoint(host, port string) services.Endpoint {
-	return Endpoint(fmt.Sprintf("%s:%s", host, port))
-}
-
 func GetHostname() (string, error) {
-	hostname, err := net.Hostname()
+	hostname, err := os.Hostname()
 	if err != nil {
 		glog.Errorf("Unable to get the hostname of the box, error: %s", err)
 		return "", err

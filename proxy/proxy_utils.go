@@ -37,13 +37,6 @@ func NewProxyService(cfg *config.Configuration, service services.Service) (Proxy
 	glog.V(5).Infof("Creating new proxy service for: %s", service)
 	proxier := new(Proxier)
 	proxier.Service = service
-	/* step: create a load balancer for the service */
-	balancer, err := NewLoadBalancer("rr")
-	if err != nil {
-		glog.Errorf("Unable to create a load balancer for service: %s, error: %s", service, err)
-		return nil, err
-	}
-	proxier.LoadBalancer = balancer
 
 	/* step: create a proxy socket for this service */
 	socket, err := NewProxySocket(service.Protocol, service.Port)
@@ -52,6 +45,14 @@ func NewProxyService(cfg *config.Configuration, service services.Service) (Proxy
 		return nil, err
 	}
 	proxier.Socket = socket
+
+	/* step: create a load balancer for the service */
+	balancer, err := NewLoadBalancer("rr")
+	if err != nil {
+		glog.Errorf("Unable to create a load balancer for service: %s, error: %s", service, err)
+		return nil, err
+	}
+	proxier.LoadBalancer = balancer
 
 	/* step: create the discovery agent */
 	err = InitializeProxyDiscoveryService(cfg, proxier)
@@ -120,11 +121,11 @@ func TryConnect(service *services.Service, lb LoadBalancer, ds discovery.Discove
 			glog.Errorf("Unable to find an service endpoint for service: %s", service, err)
 			return nil, err
 		}
-		glog.V(3).Infof("Proxying service %s to endpoint %s", service, endpoint)
+		glog.V(4).Infof("Proxying service %s to endpoint %s", service, endpoint)
 		/* step: attempt to connect to the backend */
 		outConn, err := net.DialTimeout(service.ProtocolName(), string(endpoint), retryTimeout*time.Second)
 		if err != nil {
-			glog.Errorf("Dial failed: %v", err)
+			glog.Errorf("Failed to connect to backend service: %s, error: %s", endpoint, err )
 			continue
 		}
 		return outConn, nil
@@ -133,14 +134,14 @@ func TryConnect(service *services.Service, lb LoadBalancer, ds discovery.Discove
 	return nil, errors.New("Unable to connect to any endpoints")
 }
 
-func TransferTCPBytes(direction string, dest, src net.Conn, waitgroup *sync.WaitGroup) {
+func TransferTCPBytes(direction string, dest, src *net.TCPConn, waitgroup *sync.WaitGroup) {
 	defer waitgroup.Done()
 	glog.V(4).Infof("Copying %s: %s -> %s", direction, src.RemoteAddr(), dest.RemoteAddr())
 	n, err := io.Copy(dest, src)
 	if err != nil {
 		glog.Errorf("I/O error: %v", err)
 	}
-	src.Close()
-	dest.Close()
 	glog.V(4).Infof("Copied %d bytes %s: %s -> %s", n, direction, src.RemoteAddr(), dest.RemoteAddr())
+	dest.CloseWrite()
+	src.CloseRead()
 }

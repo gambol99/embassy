@@ -17,6 +17,8 @@ package main
 
 import (
 	"flag"
+	"errors"
+	"runtime/debug"
 
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/proxy"
@@ -29,7 +31,6 @@ var proxies = make(map[services.ServiceID]proxy.ProxyService)
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	/* step: parse command line options */
 	configuration := ParseOptions()
 	/* step: create a backend service provider */
@@ -39,7 +40,11 @@ func main() {
 		request := <-channel
 		glog.V(2).Infof("Received a backend service request: %s", request)
 		if proxier := FindProxyService(request); proxier == nil {
-			proxier, _ = CreateServiceProxy(configuration, request)
+			proxier, err := CreateServiceProxy(configuration, request)
+			if err != nil {
+				glog.Errorf("Unable to create the proxy service for: %s", request )
+				continue
+			}
 			glog.Infof("Proxy Service: %s", proxier)
 		} else {
 			glog.Infof("Service request already being handled, skipping request")
@@ -56,9 +61,16 @@ func FindProxyService(si services.Service) proxy.ProxyService {
 	return proxier
 }
 
-func CreateServiceProxy(cfg *config.Configuration, si services.Service) (proxy.ProxyService, error) {
+func CreateServiceProxy(cfg *config.Configuration, si services.Service) (proxier proxy.ProxyService, err error) {
+	defer func() {
+		if recover := recover(); recover != nil {
+			glog.Errorf("Failed to create a proxy service, error: %s, stack: %s", recover, debug.Stack() )
+			proxier = nil
+			err = errors.New("Unable to create the proxy service")
+		}
+	}()
 	glog.Infof("Service request: %s creating new proxy service as handler", si)
-	proxier, err := proxy.NewProxyService(cfg, si)
+	proxier, err = proxy.NewProxyService(cfg, si)
 	if err != nil {
 		glog.Errorf("Failed to create proxy service for %s", si)
 	}

@@ -29,7 +29,6 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/services"
-	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
@@ -39,7 +38,7 @@ type EtcdServiceDocument struct {
 	Tags      []string `json:"tags"`
 }
 
-func NewEtcdDocument(data []byte) (EtcdServiceDocument, error) {
+func NewEtcdDocument(data []byte) (*EtcdServiceDocument, error) {
 	document := &EtcdServiceDocument{}
 	if err := json.Unmarshal(data, &document); err != nil {
 		glog.Errorf("Unable to decode the service document: %s", document)
@@ -52,11 +51,15 @@ func NewEtcdDocument(data []byte) (EtcdServiceDocument, error) {
 	return document, nil
 }
 
+func (e EtcdServiceDocument) ToEndpoint() services.Endpoint {
+	return services.Endpoint(fmt.Sprintf("%s:%s", e.IPaddress, e.Port))
+}
+
 func (e EtcdServiceDocument) IsValid() error {
 	if e.IPaddress == "" || e.Port == "" {
-		return endpoint, errors.New("Invalid service document, does not contain a ipaddress and port")
+		return errors.New("Invalid service document, does not contain a ipaddress and port")
 	}
-	return utils.ConvertToEndpoint(e.IPaddress, e.Port), nil
+	return nil
 }
 
 type EtcdDiscoveryService struct {
@@ -69,8 +72,7 @@ const ETCD_PREFIX = "etcd://"
 func NewEtcdStore(cfg *config.Configuration) (DiscoveryStoreProvider, error) {
 	glog.V(3).Infof("Creating a Etcd client, hosts: %s", cfg.DiscoveryURI)
 	/* step: get the etcd nodes from the dicovery uri */
-	return &EtcdDiscoveryService{
-		etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI))}, nil
+	return &EtcdDiscoveryService{etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI)),0}, nil
 }
 
 func (e *EtcdDiscoveryService) List(si *services.Service) ([]services.Endpoint, error) {
@@ -99,27 +101,29 @@ func (e *EtcdDiscoveryService) List(si *services.Service) ([]services.Endpoint, 
 			glog.Errorf("Unable to convert the response to service document, error: %s", err)
 			continue
 		}
-		list = append(list, document)
+		list = append(list, document.ToEndpoint())
 	}
 	return list, nil
 }
 
-func (e *EtcdDiscoveryService) Watch(si *services.Service) {
+func (e *EtcdDiscoveryService) Watch(si *services.Service) error {
 	if resp, err := e.client.Watch(si.Name, e.waitIndex, true, nil, nil); err != nil {
 		glog.Error("etcd:", err)
+		return err
 	} else {
 		e.waitIndex = resp.EtcdIndex + 1
 	}
+	return nil
 }
 
 func (e *EtcdDiscoveryService) Paths(path string, paths *[]string) ([]string, error) {
-	response, err := client.Get(path, false, true)
+	response, err := e.client.Get(path, false, true)
 	if err != nil {
 		return nil, errors.New("Unable to complete walking the tree" + err.Error())
 	}
 	for _, node := range response.Node.Nodes {
 		if node.Dir {
-			Paths(node.Key, paths)
+			e.Paths(node.Key, paths)
 		} else {
 			glog.Infof("Found service container: %s appeding now", node.Key)
 			*paths = append(*paths, node.Key)
@@ -130,8 +134,8 @@ func (e *EtcdDiscoveryService) Paths(path string, paths *[]string) ([]string, er
 
 func GetEtcdHosts(uri string) []string {
 	hosts := make([]string, 0)
-	for etcd_host := range strings.Split(uri, ",") {
-		if strings.HasSuffix(etcd_host, ETCD_PREFIX) {
+	for _, etcd_host := range strings.Split(uri, ",") {
+		if strings.HasPrefix(etcd_host, ETCD_PREFIX) {
 			etcd_host = strings.TrimPrefix(etcd_host, ETCD_PREFIX)
 		}
 		hosts = append(hosts, "http://"+etcd_host)
