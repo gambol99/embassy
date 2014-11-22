@@ -23,7 +23,6 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gambol99/embassy/config"
-	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
@@ -38,7 +37,6 @@ type DockerEventsChannel chan *docker.APIEvents
 
 type DockerServiceStore struct {
 	Docker  *docker.Client /* docker api client */
-	Address string
 	Config  *config.Configuration
 	Events  DockerEventsChannel /* docker events channel */
 	Updates ServiceStoreChannel /* service request are passed into this channel */
@@ -47,26 +45,17 @@ type DockerServiceStore struct {
 func NewDockerServiceStore(config *config.Configuration, channel ServiceStoreChannel) (ServiceStore, error) {
 	/* step: we create a docker client */
 	glog.V(3).Infof("Creating docker client api, socket: %s", config.DockerSocket)
-
 	/* step: validate the socket */
 	if err := ValidateDockerSocket(config.DockerSocket); err != nil {
 		return nil, err
 	}
-
-	if client, err := docker.NewClient(config.DockerSocket); err != nil {
+	/* step: create a docker client */
+	client, err := docker.NewClient(config.DockerSocket);
+	if err != nil {
 		glog.Errorf("Unable to create a docker client, error: %s", err)
 		return nil, err
-	} else {
-		/* step: we need the ip address of the proxy */
-		if ipaddress, err := utils.GetLocalIPAddress(config.Interface); err != nil {
-			glog.Errorf("Unable to get the ip address of the proxy, error: %s", err)
-			return nil, err
-		} else {
-			glog.V(5).Infof("Proxy ip address: %s, interface: %s", ipaddress, config.Interface)
-			/* step: create the service provider */
-			return &DockerServiceStore{client, ipaddress, config, nil, channel}, nil
-		}
 	}
+	return &DockerServiceStore{client, config, nil, channel}, nil
 }
 
 func (r *DockerServiceStore) DiscoverServices() error {
@@ -131,15 +120,8 @@ func (r DockerServiceStore) InspectContainerServices(containerId string) (defini
 	/* step: grab the container */
 	if container, err := r.Docker.InspectContainer(containerId); err == nil {
 		/* step: we are ONLY concerned with containers that are linked to this proxy */
-		if ipaddress, err := GetDockerIPAddress(container); err != nil {
-			glog.Errorf("Unable to get the container ip address, skipping the container for now")
-		} else {
-			/* check: is the container associated to ourself */
-			if ipaddress != r.Address {
-				//glog.Infof("The container: %s is not linked to proxy, refusing to inspect services", containerId)
-				//return definitions, nil
-			}
-			glog.V(3).Infof("container: %s linked to proxy, inspecting the services", containerId)
+		if associated  := r.IsAssociated(container); associated {
+			glog.V(0).Infof("Container: %s linked to proxy, inspecting the services", containerId)
 			if environment, err := ContainerEnvironment(container.Config.Env); err == nil {
 				/* step; scan the runtime variables for backend links */
 				for key, value := range environment {
@@ -166,9 +148,42 @@ func (r DockerServiceStore) InspectContainerServices(containerId string) (defini
 					}
 				}
 			}
+		} else {
+			glog.V(0).Info("Container: %s is not linked to our proxy, skipping", containerId)
 		}
 	}
 	return
+}
+
+const (
+	DOCKER_NETWORK_CONTAINER_PREFIX = "container:"
+)
+
+/*
+	A container is assumed to associated to the proxy if they has the same ip address as us or
+	the container is running in network mode container and we are the container
+ */
+func (r DockerServiceStore) IsAssociated(container *docker.Container) bool {
+	/* step: does the docker have an ip address */
+	if docker_ipaddress := GetDockerIPAddress(container); docker_ipaddress != "" {
+		if docker_ipaddress == r.Config.IPAddress {
+			glog.V(2).Infof("Container: %s and proxy have the same ip address", container.ID )
+			return true
+		}
+	} else {
+		/* step: is the container running in NetworkMode = container */
+		if network_mode := container.HostConfig.NetworkMode; strings.HasPrefix(network_mode, DOCKER_NETWORK_CONTAINER_PREFIX ) {
+			// lets get the container this container is linked to and see if its us
+			container_name := strings.TrimPrefix(network_mode, DOCKER_NETWORK_CONTAINER_PREFIX )
+			glog.V(5).Infof("Container: %s running net:container mode, mapping into container: %s", container.ID, container_name )
+			if container_name == r.Config.HostName {
+				return true
+			}
+		} else {
+			glog.Errorf("The container doesnt have an ip address and isn't running network mode: container")
+		}
+	}
+	return false
 }
 
 func (r DockerServiceStore) IsBackendService(key, value string) (found bool) {
@@ -194,22 +209,8 @@ func ValidateDockerSocket(socket string) error {
 	return nil
 }
 
-/*
-
-
-*/
-func IsProxyContained() bool {
-
-	return false
-}
-
-func GetDockerIPAddress(container *docker.Container) (string, error) {
-	if address := container.NetworkSettings.IPAddress; address == "" {
-		glog.Infof("The container: %s does not have an ipaddress", container.ID)
-		return "", errors.New("The container does not have an ipaddress")
-	} else {
-		return address, nil
-	}
+func GetDockerIPAddress(container *docker.Container) string {
+	return container.NetworkSettings.IPAddress
 }
 
 func ContainerStringID(containerId string) string {

@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/golang/glog"
 	"github.com/gambol99/embassy/utils"
 )
 
@@ -54,6 +55,7 @@ type Configuration struct {
 	DiscoveryURI  string
 	FixedBackend  string
 	BackendPrefix string
+	IPAddress     string
 	Interface     string
 	HostName      string
 }
@@ -73,12 +75,21 @@ func NewConfiguration() *Configuration {
 	configuration.DockerSocket = *socket
 	configuration.BackendPrefix = "BACKEND_"
 	configuration.Interface = *iface
+
 	configuration.FixedBackend = *fixed_backend
 	hostname, err := utils.GetHostname()
 	if err != nil {
+		glog.Errorf("Unable to get the hostname of the box, error: %s", err)
 		return nil
 	}
 	configuration.HostName = hostname
+	ipaddress, err := utils.GetLocalIPAddress(configuration.Interface)
+	if err != nil {
+		glog.Error("Unable to get the local ip address from interface: %s, error: %s",
+			configuration.Interface, err )
+		return nil
+	}
+	configuration.IPAddress = ipaddress
 	return configuration
 }
 
