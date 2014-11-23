@@ -11,7 +11,7 @@ Is a service proxy for docker containers, which uses either etcd/consul for serv
 Example Usage
 -------------
 
-- You already have some means service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) or [registrator](https://github.com/progrium/registrator) if not)
+- You already have some means of service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) or [registrator](https://github.com/progrium/registrator) if not)
 
         # docker run -d -P -e DISCOVERY="etcd://HOST:4001" gambol99/embassy
 
