@@ -14,25 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package proxy
+package services
 
-import (
-	"net"
+import "github.com/golang/glog"
 
-	"github.com/gambol99/embassy/discovery"
-	"github.com/gambol99/embassy/services"
-)
-
-type UDPProxySocket struct {
-	*net.UDPConn
+type FixedBackendStore struct {
+	Definition Definition
 }
 
-func (udp *UDPProxySocket) Addr() net.Addr {
-	return udp.LocalAddr()
+func NewFixedServiceStore(definition string) ServiceProvider {
+	glog.Infof("Creating a new fixed backend service, definition: %s", definition)
+	return &FixedBackendStore{Definition{"127.0.0.1", "Fixed", definition}}
 }
 
-func (tcp *UDPProxySocket) ProxyService(service *services.Service, balancer LoadBalancer, discovery discovery.DiscoveryStore) error {
-	for {
-		return nil
-	}
+func (r *FixedBackendStore) StreamServices(channel BackendServiceChannel) error {
+	channel <- r.Definition
+	return nil
 }

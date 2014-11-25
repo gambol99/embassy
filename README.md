@@ -7,13 +7,15 @@ Is a service proxy for docker containers, which uses either etcd/consul for serv
 >   - run on the docker host it self and use port mapping between host and container to permit the services
 >   - (recommended) run as network container for one or more application containers
 
+Embassy run is a single tcp port with iptables dnatting the destination and port over to the proxy from the virtual proxy ip (namely the docker0 interface ip)
+
 ------------
 Example Usage
 -------------
 
 - You already have some means of service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) or [registrator](https://github.com/progrium/registrator) if not)
 
-        # docker run -d -P -e DISCOVERY="etcd://HOST:4001" gambol99/embassy
+        # docker run -d -P --name proxy:proxy -e DISCOVERY="etcd://HOST:4001" gambol99/embassy
 
 - Service discovery has registered mutiple containers for a service, say 'app1' in the backend
 
@@ -25,16 +27,26 @@ Example Usage
 
 - Now you want your frontend box to be connected with with app1
 
-        # docker run -d -P -e BACKEND_APP1="/services/prod/app1/80[prod,app1];80/tcp" -net=container:<EMBASSY CONTAINER> app1
+        # docker run -d -P --links proxy:proxy BACKEND_APP1="/services/prod/app1/80[prod,app1];80/tcp" -net=container:<EMBASSY CONTAINER> app1
 
 **Embassy will**;
 
 > - see the container creation, read the environment variables, scan for service request/s
-> - in this example whip up a proxy bound to 127.0.0.1:80 within app1 container
+> - in this example, it create a proxier with the proxyID = container_ip + service_port
 > - pull the endpoints from etcd
-> - proxy any connections made to 127.0.0.1:80 within app1 via a load balancer (default is round robin - or least connections) over to the
-> endpoints.
+> - proxy any connections made to proxy:80 within app1 via a load balancer (default is round robin - or least connections) over to the endpoints.
+> (Note: these ports are overlaying, thus another container is allowed to map another service to the same binding proxy:80 but can be redirected to a completely different place)
 > - naturally, if the endpoints are changed, updated or removed the changes are propagated to the proxy
+
+Alternative are run the proxy on the docker host itself and use iptables to perform the redirection
+
+      # ./embassy -interface eth0 -discovery 'etcd://HOST:PORT' -v=0 -p=3232
+      # iptables -t nat -I PREROUTING -p tcp -d 172.17.42.1 -j DNAT --to-destination HOST:3232
+
+      OR on the docker0 interface directly
+
+      # ./embassy -interface docker0 -discovery 'etcd://HOST:PORT' -v=0 -p=3232
+      # iptables -t nat -I PREROUTING -p tcp -d 172.17.42.1 -j REDIRECT --to-ports 3232
 
 Note: mutiple services are simple added by placing additional environment variables
 

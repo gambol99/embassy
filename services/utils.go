@@ -17,22 +17,25 @@ limitations under the License.
 package services
 
 import (
+	"errors"
+
 	"github.com/gambol99/embassy/config"
 	"github.com/golang/glog"
 )
 
-func AddFixedServiceStore(store ServiceStore, definition string ) error {
-	fixedStore := NewFixedServiceStore(definition)
-	store.AddServiceProvider("fixed", fixedStore)
-	return nil
+func AddFixedServiceStore(store ServiceStore, definition string) error {
+	//fixedStore := NewFixedServiceStore(definition)
+	return errors.New("The fixed backend store is not yet fully supported")
+	//store.AddServiceProvider("fixed", fixedStore)
+	//return nil
 }
 
 func AddDockerServiceStore(store ServiceStore, cfg *config.Configuration) error {
 	docker_store, err := NewDockerServiceStore(cfg)
 	if err != nil {
-		glog.Errorf("Unable to create the docker service store, error: %s", err )
+		glog.Errorf("Unable to create the docker service store, error: %s", err)
 		return err
 	}
-	store.AddServiceProvider("docker", docker_store )
+	store.AddServiceProvider("docker", docker_store)
 	return nil
 }

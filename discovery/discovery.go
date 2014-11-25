@@ -36,7 +36,7 @@ type DiscoveryStoreChannel chan services.Service
 type DiscoveryStore interface {
 	ShutdownDiscovery() error
 	ListEndpoints() ([]services.Endpoint, error)
-	WatchEndpoints(channel DiscoveryStoreChannel)
+	WatchEndpoints()
 	Synchronize() error
 }
 
@@ -59,6 +59,7 @@ func NewDiscoveryService(cfg *config.Configuration, si services.Service) (Discov
 	if !IsDiscoveryStore(cfg.DiscoveryURI) {
 		return nil, errors.New("The backend discovery store specified is not supported")
 	}
+
 	var provider DiscoveryStoreProvider
 	var err error
 	discovery := new(DiscoveryStoreService)
@@ -99,7 +100,7 @@ func (ds DiscoveryStoreService) ShutdownDiscovery() error {
 }
 
 func (ds *DiscoveryStoreService) Synchronize() error {
-	glog.V(3).Infof("Resynchronizing the endpoints for service: %s", ds.Service)
+	glog.V(3).Infof("Synchronize the endpoints for service: %s", ds.Service)
 	ds.Lock()
 	defer ds.Unlock()
 	endpoints, err := ds.Store.List(&ds.Service)
@@ -113,7 +114,7 @@ func (ds *DiscoveryStoreService) Synchronize() error {
 	return nil
 }
 
-func (ds *DiscoveryStoreService) WatchEndpoints(channel DiscoveryStoreChannel) {
+func (ds *DiscoveryStoreService) WatchEndpoints() {
 	glog.V(2).Info("Watching service: %s", ds.Service)
 	go func(ds *DiscoveryStoreService) {
 		for {
@@ -123,9 +124,9 @@ func (ds *DiscoveryStoreService) WatchEndpoints(channel DiscoveryStoreChannel) {
 				time.Sleep(5 * time.Second)
 				continue
 			}
-			glog.V(4).Infof("Endpoints has changed for service: %s", ds.Service)
+			glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints now", ds.Service)
 			/* step: pull an updated list of the endpoints */
-			channel <- ds.Service
+			ds.Synchronize()
 		}
 	}(ds)
 }

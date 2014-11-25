@@ -14,20 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package proxy
 
-import "github.com/golang/glog"
+import (
+	"fmt"
 
-type FixedBackendStore struct {
-	Definition BackendDefinition
+	"github.com/gambol99/embassy/services"
+)
+
+type ProxyID string
+
+func GetProxyIDByConnection(source, port string) ProxyID {
+	return ProxyID(fmt.Sprintf("%s:%s", source, port))
 }
 
-func NewFixedServiceStore(definition string) ServiceProvider {
-	glog.Infof("Creating a new fixed backend service, definition: %s", definition )
-	return &FixedBackendStore{BackendDefinition{"Fixed",definition}}
-}
-
-func (r *FixedBackendStore) StreamServices(channel BackendServiceChannel) error {
-	channel <- r.Definition
-	return nil
+func GetProxyIDByService(si *services.Service) ProxyID {
+	return ProxyID(fmt.Sprintf("%s:%d", si.SourceIP, si.Port))
 }

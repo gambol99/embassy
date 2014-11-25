@@ -28,18 +28,19 @@ import (
 )
 
 const (
-	DOCKER_START   = "start"
-	DOCKER_DIE     = "die"
-	DOCKER_CREATED = "created"
-	DOCKER_DESTROY = "destroy"
+	DOCKER_START            = "start"
+	DOCKER_DIE              = "die"
+	DOCKER_CREATED          = "created"
+	DOCKER_DESTROY          = "destroy"
+	DOCKER_CONTAINER_PREFIX = "container:"
 )
 
 type DockerEventsChannel chan *docker.APIEvents
 
 type DockerServiceStore struct {
-	Docker  *docker.Client /* docker api client */
-	Config  *config.Configuration
-	Events  DockerEventsChannel /* docker events channel */
+	Docker *docker.Client /* docker api client */
+	Config *config.Configuration
+	Events DockerEventsChannel /* docker events channel */
 }
 
 func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
@@ -64,9 +65,13 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 		glog.Errorf("Unable to add our docker client as an event listener, error:", err)
 		return err
 	}
+
 	/* step: create a goroutine to listen to the events */
 	go func() {
 		glog.V(5).Infof("Entering into the docker events loop")
+		/* step: before we stream the services take the time to lookup for containers already running and find the links */
+		r.LookupRunningContainers(channel)
+		/* step: start the event loop and wait for docker events */
 		for event := range r.Events {
 			glog.V(5).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
 			switch event.Status {
@@ -79,8 +84,7 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 				}
 				/* step: check if any service were found */
 				for _, service := range services {
-					glog.V(3).Infof("Pushing service: %s, container: %s ", service, event.ID[:12])
-					channel <- service
+					r.PushService(channel, service, event.ID[:12])
 				}
 			case DOCKER_DIE:
 				/* @todo: could be an easy way to kill of services / proxies here */
@@ -91,38 +95,72 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 	return nil
 }
 
-func (r *DockerServiceStore) InspectContainerServices(containerId string) ([]BackendDefinition, error) {
-	var definitions = make([]BackendDefinition, 0)
-	/* step: grab the container */
-	container, err := r.Docker.InspectContainer(containerId)
-	if err != nil {
-		glog.Errorf("Unable to retrieve the container: %s via docker api, error: %s", containerId[:12], err )
-		return nil, err
-	}
-	/* step: we are ONLY concerned with containers that are linked to this proxy */
-	if associated := r.IsAssociated(container); associated || !r.Config.Association {
-		glog.V(0).Infof("Container: %s linked to proxy, inspecting the services", containerId[:12])
-		environment, err := ContainerEnvironment(container.Config.Env)
-		if err != nil {
-			glog.Errorf("Unable to retrieve the environment fron the container: %s, error: %s", containerId[:12], err )
-			return nil, err
-		}
-		/* step; scan the runtime variables for backend links */
-		for key, value := range environment {
-			glog.V(5).Infof("Runtime vars, key: %s value: %s", key, value)
-			if r.IsBackendService(key, value) {
-				glog.V(2).Infof("Found backend request in container: %s, service: %s", containerId, value)
-				/* step: create a backend definition and append to list */
-				var definition BackendDefinition
-				definition.Name = key
-				definition.Definition = value
-				definitions = append(definitions, definition )
-			} else {
-				glog.V(6).Infof("Runtime; %s = %s is not a backend service request", key, value)
+func (r *DockerServiceStore) PushService(channel BackendServiceChannel, definition Definition, containerId string) {
+	glog.V(3).Infof("Pushing service: %s, container: %s ", definition, containerId)
+	channel <- definition
+}
+
+func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChannel) error {
+	glog.Infof("Looking for any container already running and checking for services")
+	if containers, err := r.Docker.ListContainers(docker.ListContainersOptions{}); err == nil {
+		/* step: iterate the containers and look for services */
+		for _, containerID := range containers {
+			services, err := r.InspectContainerServices(containerID.ID)
+			if err != nil {
+				glog.Errorf("Unable to inspect container: %s for services, error: %s", containerID.ID[:12], err)
+				continue
+			}
+			for _, service := range services {
+				r.PushService(channel, service, containerID.ID[:12])
 			}
 		}
 	} else {
-		glog.V(0).Info("Container: %s is not linked to our proxy, skipping", containerId[:12])
+		glog.Errorf("Failed to list the currently running container, error: %s", err)
+		return err
+	}
+	return nil
+}
+
+func (r *DockerServiceStore) GetContainer(containerID string) (container *docker.Container, err error) {
+	glog.V(5).Infof("Grabbing the container: %s from docker api", containerID)
+	container, err = r.Docker.InspectContainer(containerID)
+	return
+}
+
+func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Definition, error) {
+	definitions := make([]Definition, 0)
+	/* step: get the container config */
+	container, err := r.GetContainer(containerID)
+	if err != nil {
+		glog.Errorf("Failed to retrieve the container config from api, container: %s, error: %s", containerID, err)
+		return nil, err
+	}
+
+	/* step: grab the source ip address of the container */
+	source_address, err := r.GetContainerIPAddress(container)
+	if err != nil {
+		glog.Errorf("Failed to get the container ip address, container: %s, error: %s", containerID[:12], err)
+		return nil, err
+	}
+
+	/* step: build the environment map of the container */
+	environment, err := ContainerEnvironment(container.Config.Env)
+	if err != nil {
+		glog.Errorf("Unable to retrieve the environment fron the container: %s, error: %s", containerID[:12], err)
+		return nil, err
+	}
+
+	/* step; scan the runtime variables for backend links */
+	for key, value := range environment {
+		if r.IsBackendService(key, value) {
+			glog.V(2).Infof("Found backend request in container: %s, service: %s", containerID, value)
+			/* step: create a backend definition and append to list */
+			var definition Definition
+			definition.Name = key
+			definition.SourceAddress = source_address
+			definition.Definition = value
+			definitions = append(definitions, definition)
+		}
 	}
 	return definitions, nil
 }
@@ -138,34 +176,40 @@ func (r *DockerServiceStore) AddDockerEventListener() (err error) {
 	return
 }
 
-const (
-	DOCKER_NETWORK_CONTAINER_PREFIX = "container:"
-)
 /*
 	A container is assumed to associated to the proxy if they has the same ip address as us or
 	the container is running in network mode container and we are the container
 */
-func (r DockerServiceStore) IsAssociated(container *docker.Container) bool {
+func (r DockerServiceStore) GetContainerIPAddress(container *docker.Container) (string, error) {
 	/* step: does the docker have an ip address */
-	if docker_ipaddress := GetDockerIPAddress(container); docker_ipaddress != "" {
-		if docker_ipaddress == r.Config.IPAddress {
-			glog.V(2).Infof("Container: %s and proxy have the same ip address", container.ID)
-			return true
-		}
+	if source_address := container.NetworkSettings.IPAddress; source_address != "" {
+		glog.V(2).Infof("Container: %s, source ip address: %s", container.ID[:12], source_address)
+		return source_address, nil
 	} else {
+		/* step: check if the container is in NetworkMode = container and if so, grab the ip address of the container */
 		/* step: is the container running in NetworkMode = container */
-		if network_mode := container.HostConfig.NetworkMode; strings.HasPrefix(network_mode, DOCKER_NETWORK_CONTAINER_PREFIX) {
-			// lets get the container this container is linked to and see if its us
-			container_name := strings.TrimPrefix(network_mode, DOCKER_NETWORK_CONTAINER_PREFIX)
-			glog.V(5).Infof("Container: %s running net:container mode, mapping into container: %s", container.ID, container_name)
-			if container_name == r.Config.HostName {
-				return true
+		if network_mode := container.HostConfig.NetworkMode; strings.HasPrefix(network_mode, DOCKER_CONTAINER_PREFIX) {
+			/* step: get the container id of the network container */
+			container_name := strings.TrimPrefix(network_mode, DOCKER_CONTAINER_PREFIX)
+			glog.V(5).Infof("Container: %s running net:container mode, mapping into container: %s", container.ID[:12], container_name)
+			/* step: grab the actual network container */
+			network_container, err := r.GetContainer(container_name)
+			if err != nil {
+				glog.Errorf("Failed to retrieve the network container: %s for container: %s, error: %s", container_name, container.ID[:12], err)
+				return "", err
 			}
+			/* step: take that and grab the ip address from it */
+			source_address, err := r.GetContainerIPAddress(network_container)
+			if err != nil {
+				glog.Error("Failed to get the ip address of the network container: %s, error: %s", container_name, err)
+				return "", err
+			}
+			return source_address, nil
 		} else {
 			glog.Errorf("The container doesnt have an ip address and isn't running network mode: container")
+			return "", errors.New("Failed to retrieve the ip address of the container, doesn't appear to have one")
 		}
 	}
-	return false
 }
 
 func (r DockerServiceStore) IsBackendService(key, value string) (found bool) {
@@ -189,10 +233,6 @@ func ValidateDockerSocket(socket string) error {
 		return errors.New("The docker socket is not a named unix socket")
 	}
 	return nil
-}
-
-func GetDockerIPAddress(container *docker.Container) string {
-	return container.NetworkSettings.IPAddress
 }
 
 /*
