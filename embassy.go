@@ -16,9 +16,7 @@ limitations under the License.
 package main
 
 import (
-	"errors"
 	"flag"
-	"runtime/debug"
 
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/proxy"
@@ -31,54 +29,32 @@ var proxies = make(map[services.ServiceID]proxy.ProxyService)
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	/* step: parse command line options */
 	configuration := ParseOptions()
+
 	/* step: create a backend service provider */
-	store, channel := LoadServicesStore(configuration)
+	store := LoadServicesStore(configuration)
 	glog.Infof("Starting the Embassy Proxy Service, local ip: %s, hostname: %s", configuration.IPAddress, configuration.HostName)
 
-	var _ = store
-	for {
-		request := <-channel
-		glog.V(2).Infof("Received a backend service request: %s", request)
-		if proxier := FindProxyService(request); proxier == nil {
-			proxier, err := CreateServiceProxy(configuration, request)
-			if err != nil {
-				glog.Errorf("Unable to create the proxy service for: %s", request)
-				continue
-			}
-			glog.Infof("Proxy Service: %s", proxier)
-		} else {
-			glog.Infof("Service request already being handled, skipping request")
-		}
-	}
-}
-
-func FindProxyService(si services.Service) proxy.ProxyService {
-	glog.V(4).Infof("Looking up proxy for service: %s", si)
-	proxier, found := proxies[si.ID]
-	if !found {
-		glog.V(5).Infof("A proxy for service: %s does not exist at present", si)
-	}
-	return proxier
-}
-
-func CreateServiceProxy(cfg *config.Configuration, si services.Service) (proxier proxy.ProxyService, err error) {
-	defer func() {
-		if recover := recover(); recover != nil {
-			glog.Errorf("Failed to create a proxy service, error: %s, stack: %s", recover, debug.Stack())
-			proxier = nil
-			err = errors.New("Unable to create the proxy service")
-		}
-	}()
-	glog.Infof("Service request: %s creating new proxy service as handler", si)
-	proxier, err = proxy.NewProxyService(cfg, si)
+	/* step: create the proxy service */
+	proxy_store, err := proxy.NewProxyStore(configuration, store)
 	if err != nil {
-		glog.Errorf("Failed to create proxy service for %s", si)
+		glog.Errorf("Failed to create the proxy service, error: %s", err)
+		return
 	}
-	proxies[si.ID] = proxier
-	proxier.StartServiceProxy()
-	return proxier, err
+
+	/* kick of the proxy and wait */
+	done := make(chan bool)
+	go func() {
+		if err := proxy_store.ProxyServices(); err != nil {
+			glog.Errorf("Failed to start the proxy service, error: %s", err)
+			return
+		}
+		done <- true
+	}()
+	var finished = <-done
+	glog.Infof("Exitting the proxy service: %s", finished)
 }
 
 func ParseOptions() *config.Configuration {
@@ -91,17 +67,13 @@ func ParseOptions() *config.Configuration {
 	return configuration
 }
 
-func LoadServicesStore(cfg *config.Configuration) (services.ServiceStore, services.ServiceStoreChannel) {
+func LoadServicesStore(cfg *config.Configuration) services.ServiceStore {
 	glog.V(5).Infof("Attempting to create a new services store")
-	channel := make(services.ServiceStoreChannel, 10)
 	store := services.NewServiceStore(cfg)
 	/* step: add the docker provider */
 	services.AddDockerServiceStore(store, cfg)
-	/* step: add ourselves as a listener */
-	store.AddServiceListener(channel)
-	/* step: start the discovery process */
-	Assert(store.FindServices(), "Unable to start the discovery services")
-	return store, channel
+	/* step: return the store */
+	return store
 }
 
 func Assert(err error, message string) {

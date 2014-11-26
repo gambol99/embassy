@@ -41,7 +41,6 @@ func NewLoadBalancer(name string) (LoadBalancer, error) {
 	}
 	lb := map[string]LoadBalancer{
 		"rr": NewLoadBalancerRR(),
-		"lc": NewLeastConnections(),
 	}[name]
 	if lb == nil {
 		return nil, errors.New("Unable to find the specified load balancer")

@@ -21,9 +21,11 @@ import (
 	"strings"
 )
 
+/* ServiceID = [CONTAINER_IP]:[SERVICE_DEFINITION]:SERVICE_PORT] */
 type ServiceID string
 type ServiceTags []string
 type ServiceProtocol int
+type Endpoint string
 
 const (
 	TCP ServiceProtocol = 1 << iota
@@ -32,33 +34,24 @@ const (
 
 type Service struct {
 	ID       ServiceID
+	SourceIP string
+	Proto    ServiceProtocol
 	Name     string
-	Protocol ServiceProtocol
 	Tags     ServiceTags
 	Port     int
 }
 
-func (s Service) String() string {
-	return fmt.Sprintf("name: %s[%s]:%s/%s", s.Name, strings.Join(s.Tags, "|"), s.Port, s.ProtocolName())
-}
-
-func (s Service) ProtocolName() string {
-	if s.isTCP() {
+func (s Service) Protocol() string {
+	switch s.Proto {
+	case TCP:
+		return "tcp"
+	case UDP:
+		return "udp"
+	default:
 		return "tcp"
 	}
-	return "udp"
 }
 
-func (s Service) isTCP() bool {
-	if s.Protocol == TCP {
-		return true
-	}
-	return false
-}
-
-func (s Service) isUDP() bool {
-	if !s.isTCP() {
-		return true
-	}
-	return false
+func (s Service) String() string {
+	return fmt.Sprintf("name: %s[%s]:%s/%s, ip: %s", s.Name, strings.Join(s.Tags, "|"), s.Port, s.Protocol(), s.SourceIP)
 }

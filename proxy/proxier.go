@@ -17,74 +17,108 @@ limitations under the License.
 package proxy
 
 import (
+	"errors"
+	"io"
 	"net"
+	"sync"
+	"time"
 
+	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/discovery"
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
 )
 
+var endpointDialTimeout = []time.Duration{1, 2, 4, 8}
+
 type Proxier struct {
-	Service      services.Service
-	Discovery    discovery.DiscoveryStore
-	LoadBalancer LoadBalancer
-	Socket       ProxySocket
-	/* --- channels ---- */
-	DiscoveryChannel discovery.DiscoveryStoreChannel
+	ID        ProxyID
+	Service   services.Service
+	Discovery discovery.DiscoveryStore
+	Balancer  LoadBalancer
 }
 
-type ProxyService interface {
-	GetService() services.Service
-	GetEndpoints() ([]services.Endpoint, error)
-	StartServiceProxy()
-}
-
-type ProxySocket interface {
-	Addr() net.Addr
-	Close() error
-	ProxyService(*services.Service, LoadBalancer, discovery.DiscoveryStore) error
-}
-
-func (p Proxier) GetService() services.Service {
-	return p.Service
-}
-
-func (p *Proxier) GetEndpoints() ([]services.Endpoint, error) {
-	list, err := p.Discovery.ListEndpoints()
+func NewProxier(cfg *config.Configuration, si services.Service) (proxier *Proxier, err error) {
+	proxier = new(Proxier)
+	proxier.ID = GetProxyIDByService(&si)
+	glog.Infof("Creating a new proxier, service: %s, proxyID: %s", si, proxier.ID)
+	/* step: create a load balancer on the service */
+	proxier.Balancer, err = NewLoadBalancer("rr")
 	if err != nil {
-		glog.Errorf("Unable to retrieve a list of endpoints for service; %s, error: %s", p.Service, err)
-		return nil, err
+		glog.Errorf("Failed to create load balancer for proxier, service: %s, error: %s", si, err)
+		return
 	}
-	return list, nil
+	/* step: create a discovery agent on the proxier service */
+	discovery, err := discovery.NewDiscoveryService(cfg, si)
+	if err != nil {
+		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", si, err)
+		return
+	}
+	/* step: synchronize the endpoints */
+	proxier.Discovery = discovery
+	if err = proxier.Discovery.Synchronize(); err != nil {
+		glog.Errorf("Failed to synchronize the endpoints on proxier startup, error: %s", err)
+	}
+	/* step: start the discovery agent watcher */
+	proxier.Discovery.WatchEndpoints()
+	return
 }
 
-func (p *Proxier) StartServiceProxy() {
-	/* step: starting listening on the service port */
-	go func(px *Proxier) {
-		glog.Infof("Starting proxy service: %s", px.Service)
-		if err := px.Socket.ProxyService(&px.Service, px.LoadBalancer, px.Discovery); err != nil {
-			glog.Errorf("Failed to start the proxy for service; %s, error: %s", px.Service, err)
+func (r *Proxier) HandleTCPConnection(inConn *net.TCPConn) error {
+	/* step: we try and connect to a backend */
+	outConn, err := r.TryConnect(inConn)
+	/* step: set some deadlines */
+	if err != nil {
+		glog.Errorf("Failed to connect to balancer: %v", err)
+		inConn.Close()
+		return err
+	}
+	/* step: we spin up to async routines to handle the byte transfer */
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go TransferTCPBytes("->", inConn, outConn, &wg)
+	go TransferTCPBytes("<-", outConn, inConn, &wg)
+	wg.Wait()
+	inConn.Close()
+	outConn.Close()
+	return nil
+}
+
+func (r *Proxier) TryConnect(inConn *net.TCPConn) (backend *net.TCPConn, err error) {
+	/* step: attempt multiple times to connect to backend */
+	for _, retryTimeout := range endpointDialTimeout {
+		endpoints, err := r.Discovery.ListEndpoints()
+		if err != nil {
+			glog.Errorf("Unable to retrieve any endpoints for service: %s, error: %s", r.Service, err)
+			return nil, err
 		}
-	}(p)
-	/* step: listen out for events from the channel */
-	go func(p *Proxier) {
-		glog.V(5).Infof("Proxy: %s, waiting on discovery events", p)
-		for {
-			update := <-p.DiscoveryChannel
-			glog.V(2).Infof("Recieved discovery update event: %s, reloading the endpoints", update)
-			/* step: get a list of endpoints */
-			err := p.Discovery.Synchronize()
-			if err != nil {
-				glog.Errorf("Unable to synchronized the latest endpoints from discovery store, error: %s", err)
-				continue
-			}
-			endpoints, err := p.Discovery.ListEndpoints()
-			if err != nil {
-				glog.Errorf("Unable to pull latest endpoints from discovery store, error: %s", err)
-				continue
-			}
-			p.LoadBalancer.UpdateEndpoints(&p.Service, endpoints)
-			glog.V(3).Infof("Updated the load balancer with the latest endpoints: %V", endpoints)
+		/* step: we get a service endpoint from the load balancer */
+		endpoint, err := r.Balancer.SelectEndpoint(&r.Service, endpoints)
+		if err != nil {
+			glog.Errorf("Unable to find an service endpoint for service: %s", r.Service, err)
+			return nil, err
 		}
-	}(p)
+		glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint)
+		/* step: attempt to connect to the backend */
+		outConn, err := net.DialTimeout(r.Service.Protocol(), string(endpoint), retryTimeout*time.Second)
+		if err != nil {
+			glog.Errorf("Failed to connect to backend service: %s, error: %s", endpoint, err)
+			continue
+		}
+		return outConn.(*net.TCPConn), nil
+	}
+	glog.Errorf("Unable to connect service: %s to any endpoints", r.Service)
+	return nil, errors.New("Unable to connect to any endpoints")
+}
+
+func TransferTCPBytes(direction string, dest, src *net.TCPConn, waitgroup *sync.WaitGroup) {
+	defer waitgroup.Done()
+	glog.V(4).Infof("Copying %s: %s -> %s", direction, src.RemoteAddr(), dest.RemoteAddr())
+	n, err := io.Copy(dest, src)
+	if err != nil {
+		glog.Errorf("I/O error: %v", err)
+	}
+	glog.V(4).Infof("Copied %d bytes %s: %s -> %s", n, direction, src.RemoteAddr(), dest.RemoteAddr())
+	dest.CloseWrite()
+	src.CloseRead()
 }

@@ -33,8 +33,8 @@ import (
   BACKEND_REDIS_MASTER=/services/prod/redis/master/6379/*;PORT;OPTION=VALUE,;
 */
 
-type BackendDefinition struct {
-	Name, Definition string
+type Definition struct {
+	SourceAddress, Name, Definition string
 }
 
 var (
@@ -45,22 +45,23 @@ var (
 	BD_SERVICE_TAGS  = regexp.MustCompile(`\[(.*)\]`)
 )
 
-func (b BackendDefinition) IsValid() bool {
+func (b Definition) IsValid() bool {
 	glog.V(6).Infof("Validating the service definition: %s", b.Definition)
 	return BD_DEFINITION.MatchString(b.Definition)
 }
 
-func (b BackendDefinition) GetSection() func(int) string {
+func (b Definition) GetSection() func(int) string {
 	var sections []string = strings.Split(b.Definition, ";")
 	return func(index int) string {
 		return sections[index]
 	}
 }
 
-func (b BackendDefinition) GetService() (service Service, err error) {
+func (b Definition) GetService() (service Service, err error) {
 	if matched := b.IsValid(); matched {
 		var Section func(int) string = b.GetSection()
 		service_name := Section(0)
+		service.SourceIP = b.SourceAddress
 		service.ID = ServiceID(b.Definition)
 		service.Name = BD_SERVICE_NAME.FindStringSubmatch(service_name)[0]
 		/* step: get the port */
@@ -74,11 +75,6 @@ func (b BackendDefinition) GetService() (service Service, err error) {
 		}
 		if strings.Index(service_name, "[") > 0 {
 			service.Tags = strings.Split(BD_SERVICE_TAGS.FindStringSubmatch(service_name)[0], ",")
-		}
-		if proto := BD_SERVICE_PROTO.FindStringSubmatch(Section(1))[0]; proto == "tcp" {
-			service.Protocol = TCP
-		} else {
-			service.Protocol = TCP
 		}
 		return service, nil
 	} else {

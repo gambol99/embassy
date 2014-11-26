@@ -26,15 +26,25 @@ import (
 
 var (
 	cfg_socket, cfg_discovery, cfg_iface, cfg_fixed_backend *string
-	cfg_association *bool
+	cfg_association                                         *bool
+	cfg_proxy_port                                          *int
+)
+
+const (
+	DEFAULT_PROXY_PORT     = 9999
+	DEFAULT_INTERFACE      = "eth0"
+	DEFAULT_DOCKER_SOCKET  = "unix://var/run/docker.sock"
+	DEFAULT_DISCOVERY_URI  = "etcd://localhost:4001"
+	DEFAULT_FIXED_BACKEND  = ""
+	DEFAULT_SERVICE_PREFIX = "BACKEND_"
 )
 
 func init() {
-	cfg_socket = flag.String("docker", "unix://var/run/docker.sock", "the location of the docker socket")
-	cfg_discovery = flag.String("discovery", "etcd://localhost:4001", "the discovery backend to pull the services from")
-	cfg_iface = flag.String("interface", "eth0", "the interface to take the proxy address from")
-	cfg_fixed_backend = flag.String("backend", "", "allow you specifiy a fixed backend service")
-	cfg_association = flag.Bool("association",true,"whether or not to check association of the container to the proxy" )
+	cfg_socket = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
+	cfg_discovery = flag.String("discovery", DEFAULT_DISCOVERY_URI, "the discovery backend to pull the services from")
+	cfg_iface = flag.String("interface", DEFAULT_INTERFACE, "the interface to take the proxy address from")
+	cfg_fixed_backend = flag.String("backend", DEFAULT_FIXED_BACKEND, "allow you specifiy a fixed backend service")
+	cfg_proxy_port = flag.Int("port", DEFAULT_PROXY_PORT, "the tcp port which the proxy should listen on")
 }
 
 type Configuration struct {
@@ -42,7 +52,7 @@ type Configuration struct {
 	DiscoveryURI  string
 	FixedBackend  string
 	BackendPrefix string
-	Association   bool
+	ProxyPort     int
 	IPAddress     string
 	Interface     string
 	HostName      string
@@ -61,9 +71,9 @@ func NewConfiguration() *Configuration {
 	configuration := new(Configuration)
 	configuration.DiscoveryURI = *cfg_discovery
 	configuration.DockerSocket = *cfg_socket
-	configuration.BackendPrefix = "BACKEND_"
+	configuration.BackendPrefix = DEFAULT_SERVICE_PREFIX
+	configuration.ProxyPort = *cfg_proxy_port
 	configuration.Interface = *cfg_iface
-	configuration.Association = *cfg_association
 	configuration.FixedBackend = *cfg_fixed_backend
 	hostname, err := utils.GetHostname()
 	if err != nil {
