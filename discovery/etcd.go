@@ -63,8 +63,7 @@ func (e EtcdServiceDocument) IsValid() error {
 }
 
 type EtcdDiscoveryService struct {
-	client    *etcd.Client
-	waitIndex uint64
+	client *etcd.Client
 }
 
 const ETCD_PREFIX = "etcd://"
@@ -72,7 +71,7 @@ const ETCD_PREFIX = "etcd://"
 func NewEtcdStore(cfg *config.Configuration) (DiscoveryStoreProvider, error) {
 	glog.V(3).Infof("Creating a Etcd client, hosts: %s", cfg.DiscoveryURI)
 	/* step: get the etcd nodes from the dicovery uri */
-	return &EtcdDiscoveryService{etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI)), 0}, nil
+	return &EtcdDiscoveryService{etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI))}, nil
 }
 
 func (e *EtcdDiscoveryService) List(si *services.Service) ([]services.Endpoint, error) {
@@ -107,13 +106,17 @@ func (e *EtcdDiscoveryService) List(si *services.Service) ([]services.Endpoint, 
 }
 
 func (e *EtcdDiscoveryService) Watch(si *services.Service) error {
-	if resp, err := e.client.Watch(si.Name, e.waitIndex, true, nil, nil); err != nil {
-		glog.Error("etcd:", err)
-		return err
-	} else {
-		e.waitIndex = resp.EtcdIndex + 1
+	for {
+		resp, err := e.client.Watch(si.Name, 0, true, nil, nil)
+		if err != nil {
+			glog.Error("etcd:", err)
+			return err
+		}
+		/* step: we should only return on changes to nodes - not directories */
+		if resp.Node.Dir == false {
+			return nil
+		}
 	}
-	return nil
 }
 
 func (e *EtcdDiscoveryService) Paths(path string, paths *[]string) ([]string, error) {
