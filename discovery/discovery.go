@@ -110,7 +110,7 @@ func (ds *DiscoveryStoreService) Synchronize() error {
 	}
 	/* step: we register any new endpoints - using the endpoint id as key into the map */
 	ds.Endpoints = endpoints
-	glog.V(4).Infof("Updating the endpoints for service: %s", ds.Service)
+	glog.V(5).Infof("Updating the endpoints for service: %s, endpoints: %s", ds.Service, ds.Endpoints)
 	return nil
 }
 
@@ -124,7 +124,7 @@ func (ds *DiscoveryStoreService) WatchEndpoints() {
 				time.Sleep(5 * time.Second)
 				continue
 			}
-			glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints now", ds.Service)
+			glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service)
 			/* step: pull an updated list of the endpoints */
 			ds.Synchronize()
 		}

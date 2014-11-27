@@ -18,6 +18,7 @@ package config
 
 import (
 	"flag"
+	"fmt"
 	"net/url"
 
 	"github.com/gambol99/embassy/utils"
@@ -65,6 +66,11 @@ func (s Configuration) GetDiscoveryURI() *url.URL {
 
 func (s Configuration) ValidConfiguration() error {
 	return nil
+}
+
+func (s Configuration) String() string {
+	return fmt.Sprintf("socket: %s, discovery: %s, proxy: (%s) %s:%d", s.DockerSocket, s.DiscoveryURI,
+		s.Interface, s.IPAddress, s.ProxyPort)
 }
 
 func NewConfiguration() *Configuration {
