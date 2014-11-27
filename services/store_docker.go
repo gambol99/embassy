@@ -76,19 +76,22 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 			glog.V(5).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
 			switch event.Status {
 			case DOCKER_START:
-				/* step: check is the container has any services defined */
-				services, err := r.InspectContainerServices(event.ID)
-				if err != nil {
-					glog.Errorf("Unable to inspect container: %s for services, error: %s", event.ID[:12], err)
-					continue
-				}
-				/* step: check if any service were found */
-				for _, service := range services {
-					r.PushService(channel, service, event.ID[:12])
-				}
-			case DOCKER_DIE:
-				/* @todo: could be an easy way to kill of services / proxies here */
+				go func(e *docker.APIEvents) {
+					services, err := r.InspectContainerServices(event.ID)
+					if err != nil {
+						glog.Errorf("Unable to inspect container: %s for services, error: %s", event.ID[:12], err)
+						return
+					}
+					if len(services) <= 0 {
+						glog.V(4).Infof("No service request found in container: %s", event.ID[:12])
+						return
+					}
+					for _, service := range services {
+						r.PushService(channel, service, event.ID[:12])
+					}
+				}(event)
 			}
+			glog.V(5).Infof("Docker event: %s, handled, looping aroubnd", event.Status)
 		}
 		glog.Errorf("Exitting the docker event loop")
 	}()
