@@ -53,5 +53,5 @@ func (s Service) Protocol() string {
 }
 
 func (s Service) String() string {
-	return fmt.Sprintf("name: %s[%s]:%s/%s, ip: %s", s.Name, strings.Join(s.Tags, "|"), s.Port, s.Protocol(), s.SourceIP)
+	return fmt.Sprintf("name: %s[%s]:%d/%s, ip: %s", s.Name, strings.Join(s.Tags, "|"), s.Port, s.Protocol(), s.SourceIP)
 }

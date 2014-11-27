@@ -18,6 +18,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -55,6 +56,10 @@ func (b Definition) GetSection() func(int) string {
 	return func(index int) string {
 		return sections[index]
 	}
+}
+
+func (b Definition) String() string {
+	return fmt.Sprintf("definition: %s|%s : %s ", b.SourceAddress, b.Name, b.Definition)
 }
 
 func (b Definition) GetService() (service Service, err error) {

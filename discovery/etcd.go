@@ -16,10 +16,6 @@ limitations under the License.
 
 package discovery
 
-/*
-	The node value in etcd must be a json string which contains at the very least, 'ipaddress','port'
-*/
-
 import (
 	"encoding/json"
 	"errors"
@@ -32,9 +28,93 @@ import (
 	"github.com/golang/glog"
 )
 
+type EtcdClient struct {
+	client    *etcd.Client
+	waitIndex uint64
+}
+
+const (
+	ETCD_PREFIX = "etcd://"
+)
+
+func NewEtcdStore(cfg *config.Configuration) (DiscoveryStoreProvider, error) {
+	glog.V(3).Infof("Creating a Etcd client, hosts: %s", cfg.DiscoveryURI)
+	/* step: get the etcd nodes from the dicovery uri */
+	return &EtcdClient{etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI)), 0}, nil
+}
+
+func (e *EtcdClient) List(si *services.Service) ([]services.Endpoint, error) {
+	list := make([]services.Endpoint, 0)
+	glog.V(5).Infof("Listing the container nodes for service: %s, path: %s", si, si.Name)
+
+	/* step: we get a listing of all the nodes under or branch */
+	paths := make([]string, 0)
+	paths, err := e.Paths(string(si.Name), &paths)
+	if err != nil {
+		glog.Errorf("Failed to walk the paths for service: %s, error: %s", si, err)
+		return nil, err
+	}
+
+	/* step: iterate the nodes and generate the services documents */
+	for _, service_path := range paths {
+		glog.V(5).Infof("Retrieving service document on path: %s", service_path)
+		response, err := e.client.Get(service_path, false, false)
+		if err != nil {
+			glog.Errorf("Failed to get service document at path: %s, error: %s", service_path, err)
+			continue
+		}
+		/* step: convert the document into a record */
+		document, err := NewEtcdDocument([]byte(response.Node.Value))
+		if err != nil {
+			glog.Errorf("Unable to convert the response to service document, error: %s", err)
+			continue
+		}
+		list = append(list, document.ToEndpoint())
+	}
+	return list, nil
+}
+
+func (e *EtcdClient) Watch(si *services.Service) error {
+	/* step: we ONLY want to be alerted if it's a node that has changed */
+	for {
+		glog.V(5).Infof("Watching service: %s, path: %s", si, si.Name)
+		response, err := e.client.Watch(si.Name, e.waitIndex, true, nil, nil)
+		if err != nil {
+			glog.Infof("Received an error while watching service path: %s, error: %s", si.Name, err)
+			return err
+		} else {
+			e.waitIndex = response.Node.ModifiedIndex + 1
+		}
+		/* check: is this a directory change? */
+		if response.Node.Dir == false {
+			glog.V(6).Infof("Changed occured on path: %s, nodes: %V", si.Name, response.Node.Nodes)
+			return nil
+		}
+		glog.V(9).Infof("Skipping the directory change on path: %s", response.Node.Key)
+		/* else we can continue */
+	}
+}
+
+func (e *EtcdClient) Paths(path string, paths *[]string) ([]string, error) {
+	response, err := e.client.Get(path, false, true)
+	if err != nil {
+		return nil, errors.New("Unable to complete walking the tree" + err.Error())
+	}
+	for _, node := range response.Node.Nodes {
+		if node.Dir {
+			e.Paths(node.Key, paths)
+		} else {
+			glog.Infof("Found service container: %s appending now", node.Key)
+			*paths = append(*paths, node.Key)
+		}
+	}
+	return *paths, nil
+}
+
 type EtcdServiceDocument struct {
 	IPaddress string   `json:"ipaddress"`
-	Port      string   `json:"host_port"`
+	HostPort  string   `json:"host_port"`
+	Port      string   `json:"port"`
 	Tags      []string `json:"tags"`
 }
 
@@ -52,7 +132,14 @@ func NewEtcdDocument(data []byte) (*EtcdServiceDocument, error) {
 }
 
 func (e EtcdServiceDocument) ToEndpoint() services.Endpoint {
-	return services.Endpoint(fmt.Sprintf("%s:%s", e.IPaddress, e.Port))
+	/* check: since most registration / discovery uses port rather than host_port */
+	port := ""
+	if e.HostPort != "" {
+		port = e.HostPort
+	} else {
+		port = e.Port
+	}
+	return services.Endpoint(fmt.Sprintf("%s:%s", e.IPaddress, port))
 }
 
 func (e EtcdServiceDocument) IsValid() error {
@@ -60,76 +147,6 @@ func (e EtcdServiceDocument) IsValid() error {
 		return errors.New("Invalid service document, does not contain a ipaddress and port")
 	}
 	return nil
-}
-
-type EtcdDiscoveryService struct {
-	client    *etcd.Client
-	waitIndex uint64
-}
-
-const ETCD_PREFIX = "etcd://"
-
-func NewEtcdStore(cfg *config.Configuration) (DiscoveryStoreProvider, error) {
-	glog.V(3).Infof("Creating a Etcd client, hosts: %s", cfg.DiscoveryURI)
-	/* step: get the etcd nodes from the dicovery uri */
-	return &EtcdDiscoveryService{etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI)), 0}, nil
-}
-
-func (e *EtcdDiscoveryService) List(si *services.Service) ([]services.Endpoint, error) {
-	list := make([]services.Endpoint, 0)
-	glog.V(5).Infof("Listing the container nodes for service: %s, path: %s", si, si.Name)
-
-	/* step: we get a listing of all the nodes under or branch */
-	paths := make([]string, 0)
-	paths, err := e.Paths(string(si.Name), &paths)
-	if err != nil {
-		glog.Errorf("Failed to walk the paths for service: %s, error: %s", si, err)
-		return nil, err
-	}
-
-	/* step: iterate the nodes and generate the services documents */
-	for _, service_path := range paths {
-		glog.V(5).Infof("Retrieving service document on path: %s", service_path)
-		response, err := e.client.Get(service_path, false, false)
-		if err != nil {
-			glog.Errorf("Failed to retrieve service document at path: %s, error: %s", service_path, err)
-			continue
-		}
-		/* step: convert the document into a record */
-		document, err := NewEtcdDocument([]byte(response.Node.Value))
-		if err != nil {
-			glog.Errorf("Unable to convert the response to service document, error: %s", err)
-			continue
-		}
-		list = append(list, document.ToEndpoint())
-	}
-	return list, nil
-}
-
-func (e *EtcdDiscoveryService) Watch(si *services.Service) error {
-	if resp, err := e.client.Watch(si.Name, e.waitIndex, true, nil, nil); err != nil {
-		glog.Error("etcd:", err)
-		return err
-	} else {
-		e.waitIndex = resp.EtcdIndex + 1
-	}
-	return nil
-}
-
-func (e *EtcdDiscoveryService) Paths(path string, paths *[]string) ([]string, error) {
-	response, err := e.client.Get(path, false, true)
-	if err != nil {
-		return nil, errors.New("Unable to complete walking the tree" + err.Error())
-	}
-	for _, node := range response.Node.Nodes {
-		if node.Dir {
-			e.Paths(node.Key, paths)
-		} else {
-			glog.Infof("Found service container: %s appeding now", node.Key)
-			*paths = append(*paths, node.Key)
-		}
-	}
-	return *paths, nil
 }
 
 func GetEtcdHosts(uri string) []string {
