@@ -57,7 +57,7 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 	store.AddServiceListener(proxy.ServicesChannel)
 
 	/* step: create a tcp listener for the proxy service */
-	glog.V(4).Infof("Binding proxy to interface: %s:%d", cfg.IPAddress, cfg.ProxyPort)
+	glog.V(2).Infof("Binding proxy to interface: %s:%d", cfg.IPAddress, cfg.ProxyPort)
 	//tcp_addr := net.TCPAddr{net.ParseIP(cfg.IPAddress), cfg.ProxyPort, ""}
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.ProxyPort))
 	if err != nil {
@@ -107,7 +107,7 @@ func (px *ProxyStore) ProxyServices() error {
 				glog.Infof("Creating new proxier for service: %s, consumer", service, proxyID)
 				proxier, err := NewProxier(px.Config, service)
 				if err != nil {
-					glog.Infof("Unable to create proxier, service: %s, error: %s", service, err)
+					glog.Errorf("Unable to create proxier, service: %s, error: %s", service, err)
 					return
 				}
 				/* step; add the new proxier to the collection */

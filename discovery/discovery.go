@@ -115,7 +115,7 @@ func (ds *DiscoveryStoreService) Synchronize() error {
 }
 
 func (ds *DiscoveryStoreService) WatchEndpoints() {
-	glog.V(2).Info("Watching service: %s", ds.Service)
+	glog.V(2).Infof("Watching service: %s", ds.Service)
 	go func(ds *DiscoveryStoreService) {
 		for {
 			glog.V(4).Infof("Waiting for endpoints on service: %s to change", ds.Service)
@@ -124,7 +124,7 @@ func (ds *DiscoveryStoreService) WatchEndpoints() {
 				time.Sleep(5 * time.Second)
 				continue
 			}
-			glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service)
+			glog.V(2).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service)
 			/* step: pull an updated list of the endpoints */
 			ds.Synchronize()
 		}
