@@ -60,7 +60,7 @@ func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
 }
 
 func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error {
-	glog.V(6).Info("Starting the docker backend service discovery stream")
+	glog.V(6).Infof("Starting the docker backend service discovery stream")
 	if err := r.AddDockerEventListener(); err != nil {
 		glog.Errorf("Unable to add our docker client as an event listener, error:", err)
 		return err
@@ -73,7 +73,7 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 		r.LookupRunningContainers(channel)
 		/* step: start the event loop and wait for docker events */
 		for event := range r.Events {
-			glog.V(5).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
+			glog.V(2).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
 			switch event.Status {
 			case DOCKER_START:
 				go func(e *docker.APIEvents) {
@@ -83,7 +83,7 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 						return
 					}
 					if len(services) <= 0 {
-						glog.V(4).Infof("No service request found in container: %s", event.ID[:12])
+						glog.V(2).Infof("No service request found in container: %s", event.ID[:12])
 						return
 					}
 					for _, service := range services {
@@ -99,7 +99,7 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 }
 
 func (r *DockerServiceStore) PushService(channel BackendServiceChannel, definition Definition, containerId string) {
-	glog.V(3).Infof("Pushing service: %s, container: %s ", definition, containerId)
+	glog.V(2).Infof("Pushing service: %s, container: %s ", definition, containerId)
 	channel <- definition
 }
 

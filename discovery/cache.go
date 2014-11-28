@@ -17,22 +17,26 @@ limitations under the License.
 package discovery
 
 import (
-	"fmt"
+	"sync"
+
+	"github.com/gambol99/embassy/services"
 )
 
-type EndPoint string
-type EndPointEvent int
-
-const (
-	CHANGED = 1 << iota
-	DELETED
-)
-
-type EndpointEvent struct {
-	Name     string
-	Event    EndPointEvent
+type DiscoveryStoreCache struct {
+	stores map[ServiceID]DiscoveryStore
 }
 
-func (r EndpointEvent) String() string {
-	return fmt.Sprintf("event: [%s] %s", r.Name, r.Event)
+func (r *DiscoveryStoreCache) Lookup(si *services.Service) (store DiscoveryStore, found bool) {
+	if store, found = r.store[si.ID]; found {
+		return
+	}
+	return nil, false
+}
+
+func (r *DiscoveryStoreCache) Add(si *services.Service, store DiscoveryStore) {
+	store[si.ID] = store
+}
+
+func (r *DiscoveryStoreCache) Remove(si *services.Service) {
+	r.stores = delete[si.ID]
 }

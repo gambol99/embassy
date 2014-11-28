@@ -7,7 +7,7 @@
 FROM centos
 MAINTAINER <gambol99@gmail.com>
 
-ADD ./stage/embassy /bin/embassy
-ADD ./stage/startup.sh ./startup.sh
+ADD startup.sh ./startup.sh
+RUN curl -ksL https://drone.io/github.com/gambol99/embassy/files/embassy.gz | gunzip - > /bin/embassy
 RUN chmod +x /startup.sh; chmod +x /bin/embassy
 ENTRYPOINT [ "/startup.sh" ]

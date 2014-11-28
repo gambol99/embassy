@@ -20,6 +20,7 @@ import (
 	"errors"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/golang/glog"
@@ -57,6 +58,21 @@ func GetLocalIPAddress(interface_name string) (string, error) {
 		}
 	}
 	return "", errors.New("Unable to determine or find the interface")
+}
+
+func ToInteger(value string) (int, error) {
+	converted, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, errors.New("Invalid argument, unable to convert to integer")
+	}
+	return int(converted), nil
+}
+
+func IsPort(port int) (bool, error) {
+	if port <= 0 || port >= 65535 {
+		return false, errors.New("Invalid service port; must be between 1 and 65535")
+	}
+	return true, nil
 }
 
 func GetHostname() (string, error) {

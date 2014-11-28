@@ -17,8 +17,11 @@ limitations under the License.
 package services
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/gambol99/embassy/utils"
 )
 
 /* ServiceID = [CONTAINER_IP]:[SERVICE_DEFINITION]:SERVICE_PORT] */
@@ -41,6 +44,16 @@ type Service struct {
 	Port     int
 }
 
+func (s Service) IsValid() error {
+	if s.Name == "" {
+		return errors.New("Service does not have a name field")
+	}
+	if _, err := utils.IsPort(s.Port); err != nil {
+		return errors.New("Invalid service port, check the service document")
+	}
+	return nil
+}
+
 func (s Service) Protocol() string {
 	switch s.Proto {
 	case TCP:
@@ -53,5 +66,5 @@ func (s Service) Protocol() string {
 }
 
 func (s Service) String() string {
-	return fmt.Sprintf("name: %s[%s]:%d/%s, ip: %s", s.Name, strings.Join(s.Tags, "|"), s.Port, s.Protocol(), s.SourceIP)
+	return fmt.Sprintf("name: %s[%s]:%s/%s, ip: %s", s.Name, strings.Join(s.Tags, "|"), s.Port, s.Protocol(), s.SourceIP)
 }

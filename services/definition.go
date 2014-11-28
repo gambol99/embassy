@@ -20,10 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
+	"github.com/gambol99/embassy/utils"
 )
 
 /*
@@ -39,50 +38,47 @@ type Definition struct {
 }
 
 var (
-	BD_DEFINITION    = regexp.MustCompile(`[[:alnum:]\/\*\.-]*(\[[[:alnum:],]+\])?;[0-9]+\/(tcp|udp)(;((.*)=(.*)){1,})?;?`)
-	BD_SERVICE_NAME  = regexp.MustCompile(`(^[[:alnum:]\/\*\.-]*)`)
-	BD_SERVICE_PORT  = regexp.MustCompile(`([0-9]+)`)
-	BD_SERVICE_PROTO = regexp.MustCompile(`\/(tcp|udp)`)
-	BD_SERVICE_TAGS  = regexp.MustCompile(`\[(.*)\]`)
+	BD_DEFINITION   = regexp.MustCompile(`([[:alnum:]\/\.\-\_*]+)(\[(.*)\])?;([[:digit:]]{1,5})\/(tcp|udp)`)
+	BD_SERVICE_NAME = regexp.MustCompile(`([[:alnum:]\/\.\-\_*]+)`)
+	BD_SERVICE_PORT = regexp.MustCompile(`([[:digit:]]+)\/(tcp|udp)`)
+	BD_SERVICE_TAGS = regexp.MustCompile(`\[(.*)\]`)
 )
 
 func (b Definition) IsValid() bool {
-	glog.V(6).Infof("Validating the service definition: %s", b.Definition)
 	return BD_DEFINITION.MatchString(b.Definition)
-}
-
-func (b Definition) GetSection() func(int) string {
-	var sections []string = strings.Split(b.Definition, ";")
-	return func(index int) string {
-		return sections[index]
-	}
 }
 
 func (b Definition) String() string {
 	return fmt.Sprintf("definition: %s|%s : %s ", b.SourceAddress, b.Name, b.Definition)
 }
 
+/* /services/prod/redis/master/6379/*;PORT;OPTION=VALUE */
 func (b Definition) GetService() (service Service, err error) {
 	if matched := b.IsValid(); matched {
-		var Section func(int) string = b.GetSection()
-		service_name := Section(0)
-		service.SourceIP = b.SourceAddress
+		sections := strings.Split(b.Definition, ";")
+		section_name := sections[0]
+		section_network := sections[1]
+
 		service.ID = ServiceID(b.Definition)
-		service.Name = BD_SERVICE_NAME.FindStringSubmatch(service_name)[0]
-		/* step: get the port */
-		if converted, err := strconv.ParseInt(BD_SERVICE_PORT.FindStringSubmatch(Section(1))[0], 10, 64); err != nil {
-			errors.New("Invalid service port")
-		} else {
-			if converted <= 0 || converted >= 65535 {
-				errors.New("Invalid service port, must be between 1 and 65535")
-			}
-			service.Port = int(converted)
+		service.SourceIP = b.SourceAddress
+		service.Name = BD_SERVICE_NAME.FindStringSubmatch(section_name)[0]
+		service.Port, err = utils.ToInteger(BD_SERVICE_PORT.FindAllStringSubmatch(section_network, 1)[0][1])
+		if err != nil {
+			return service, errors.New("Invalid service port found in defintion")
 		}
-		if strings.Index(service_name, "[") > 0 {
-			service.Tags = strings.Split(BD_SERVICE_TAGS.FindStringSubmatch(service_name)[0], ",")
+		protocol := BD_SERVICE_PORT.FindAllStringSubmatch(section_network, 1)[0][2]
+		switch protocol {
+		case "tcp":
+			service.Proto = TCP
+		case "udp":
+			service.Proto = UDP
 		}
-		return service, nil
+		/* step: get the service tags */
+		if strings.Index(section_name, "[") > 0 {
+			service.Tags = strings.Split(BD_SERVICE_TAGS.FindStringSubmatch(section_name)[0], ",")
+		}
 	} else {
 		return service, errors.New("Invalid service definition, does not match requirements")
 	}
+	return
 }

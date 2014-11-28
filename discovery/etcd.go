@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gambol99/embassy/config"
@@ -43,6 +44,11 @@ func NewEtcdStore(cfg *config.Configuration) (DiscoveryStoreProvider, error) {
 	return &EtcdClient{etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI)), 0}, nil
 }
 
+func (r *EtcdClient) Close() error {
+	r.
+
+}
+
 func (e *EtcdClient) List(si *services.Service) ([]services.Endpoint, error) {
 	list := make([]services.Endpoint, 0)
 	glog.V(5).Infof("Listing the container nodes for service: %s, path: %s", si, si.Name)
@@ -54,7 +60,6 @@ func (e *EtcdClient) List(si *services.Service) ([]services.Endpoint, error) {
 		glog.Errorf("Failed to walk the paths for service: %s, error: %s", si, err)
 		return nil, err
 	}
-
 	/* step: iterate the nodes and generate the services documents */
 	for _, service_path := range paths {
 		glog.V(5).Infof("Retrieving service document on path: %s", service_path)
@@ -74,25 +79,34 @@ func (e *EtcdClient) List(si *services.Service) ([]services.Endpoint, error) {
 	return list, nil
 }
 
-func (e *EtcdClient) Watch(si *services.Service) error {
+func (e *EtcdClient) Watch(si *services.Service) (updates EndpointUpdateChannel, err error) {
+	/* step: make a sure to send back updates */
+	updates = make(EndpointUpdateChannel)
 	/* step: we ONLY want to be alerted if it's a node that has changed */
-	for {
-		glog.V(5).Infof("Watching service: %s, path: %s", si, si.Name)
-		response, err := e.client.Watch(si.Name, e.waitIndex, true, nil, nil)
-		if err != nil {
-			glog.Infof("Received an error while watching service path: %s, error: %s", si.Name, err)
-			return err
-		} else {
-			e.waitIndex = response.Node.ModifiedIndex + 1
+	go func() {
+		/* step: start the channel for watching */
+		glog.V(5).Infof("Etcd Watching service: %s, path: %s", si, si.Name)
+		for {
+			response, err := e.client.Watch(si.Name, 0, true, nil, nil)
+			if err != nil {
+				glog.Errorf("Etcd client for service: %s recieved an error: %s", si, err )
+				time.Sleep(5 * time.Second)
+				continue
+			}
+			/* check: is this a directory change? */
+			if response.Node.Dir == false {
+				glog.V(7).Infof("Changed occured on path: %s", si.Name )
+				update, err := ProcessEndpoint(response)
+				if err != nil {
+					glog.Errorf("Failed to process the response from etcd, service: %s, error: %s",	si, err )
+					continue
+				}
+				updates <- update
+			}
+			glog.V(9).Infof("Skipping the directory change on path: %s", response.Node.Key)
 		}
-		/* check: is this a directory change? */
-		if response.Node.Dir == false {
-			glog.V(6).Infof("Changed occured on path: %s, nodes: %V", si.Name, response.Node.Nodes)
-			return nil
-		}
-		glog.V(9).Infof("Skipping the directory change on path: %s", response.Node.Key)
-		/* else we can continue */
-	}
+	}()
+	return updates, nil
 }
 
 func (e *EtcdClient) Paths(path string, paths *[]string) ([]string, error) {
@@ -158,4 +172,18 @@ func GetEtcdHosts(uri string) []string {
 		hosts = append(hosts, "http://"+etcd_host)
 	}
 	return hosts
+}
+
+func ProcessEndpoint(response *etcd.Response) (event EndpointEvent, error) {
+	event.Name = response.Node.Key
+	switch response.Action {
+	case "set":
+		event.Event = CHANGED
+	case "delete":
+		event.Event = DELETED
+	default:
+		glog.Errorf("Unknown action recieved from etcd: %V", response )
+		return event, errors.New("Unknown action type recieved in response")
+	}
+	return event, nil
 }

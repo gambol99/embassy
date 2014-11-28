@@ -27,7 +27,7 @@ failed() {
 }
 
 get_ipaddress() {
-  echo $(ip addr show $INTERFACE | awk '/inet/ { split($2,a,"/"); print a[1] }')
+  echo $(ip addr show $INTERFACE | awk '/inet/ { split($2,a,"/"); print a[1] }' | egrep '^([0-9]{1,2}\.){1,3}[0-9]{1,2}')
 }
 
 IPADDRESS=$(get_ipaddress)
