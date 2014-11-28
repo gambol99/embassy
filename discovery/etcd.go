@@ -78,7 +78,7 @@ func (e *EtcdClient) Watch(si *services.Service) error {
 	/* step: we ONLY want to be alerted if it's a node that has changed */
 	for {
 		glog.V(5).Infof("Watching service: %s, path: %s", si, si.Name)
-		response, err := e.client.Watch(si.Name, e.waitIndex, true, nil, nil)
+		response, err := e.client.Watch(si.Name, 0, true, nil, nil)
 		if err != nil {
 			glog.Infof("Received an error while watching service path: %s, error: %s", si.Name, err)
 			return err
