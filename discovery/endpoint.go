@@ -20,31 +20,19 @@ import (
 	"fmt"
 )
 
+type EndPoint string
+type EndPointEvent int
+
 const (
-	CHANGED = 0 << iota
+	CHANGED = 1 << iota
 	DELETED
 )
 
-type EndPoint string
-
-type EndPointEvent int
-
-func (r EndpointEvent) String() string {
-	switch r.action {
-	case CHANGED:
-		return "CHANGED"
-	case DELETED:
-		return "DELETED"
-	default:
-		return "UNKNOWN"
-	}
-}
-
 type EndpointEvent struct {
-	endpoint EndPoint
-	event    EndPointEvent
+	Name     string
+	Event    EndPointEvent
 }
 
 func (r EndpointEvent) String() string {
-	return fmt.Sprintf("event: [%s] %s", r.endpoint, r.event)
+	return fmt.Sprintf("event: [%s] %s", r.Name, r.Event)
 }

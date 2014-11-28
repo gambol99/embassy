@@ -20,7 +20,6 @@ import (
 	"errors"
 	"regexp"
 	"sync"
-	"time"
 
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/services"
@@ -32,6 +31,7 @@ const (
 )
 
 type DiscoveryEventsChannel chan EndPoint
+type EndpointUpdateChannel chan EndPoint
 
 type DiscoveryStore interface {
 	/* shutdown the discovery agent */
@@ -52,7 +52,7 @@ type DiscoveryStoreService struct {
 	/* the service agent is running for */
 	Service services.Service
 	/* the backend provider - etcd | consul */
-	Store DiscoveryStoreProvider
+	Provider DiscoveryStoreProvider
 	/* the service configuration */
 	Config *config.Configuration
 	/* the current list of endpoints for this service */
@@ -67,14 +67,13 @@ type DiscoveryStoreProvider interface {
 	/* get a list of the endpoints from the backend */
 	List(*services.Service) ([]services.Endpoint, error)
 	/* watch for changes on the backend */
-	Watch(*services.Service) error
+	Watch(*services.Service) (EndpointUpdateChannel,error)
 	/* shutdown and clean up the provider */
 	Close()
 }
 
 func NewDiscoveryService(cfg *config.Configuration, si services.Service) (DiscoveryStore, error) {
 	/* step: check the cache first of all */
-
 	glog.Infof("Creating a new discovery agent for service: %s", si)
 	/* step: check if the store provider is supported */
 	if !IsDiscoveryStore(cfg.DiscoveryURI) {
@@ -93,9 +92,6 @@ func NewDiscoveryService(cfg *config.Configuration, si services.Service) (Discov
 	case "etcd":
 		glog.Infof("Using Etcd as discovery backend, uri: %s", cfg.DiscoveryURI)
 		provider, err = NewEtcdStore(cfg)
-	case "consul":
-		glog.Infof("Using Consul as discovery backend, uri: %s", cfg.DiscoveryURI)
-		provider, err = NewConsulStore(cfg)
 	default:
 		glog.Errorf("The discovery backend %s is not supported, please check usage", cfg.DiscoveryURI)
 		return nil, errors.New("Invalid discovery backend")
@@ -109,7 +105,7 @@ func NewDiscoveryService(cfg *config.Configuration, si services.Service) (Discov
 }
 
 func (r *DiscoveryStoreService) AddEventListener(channel DiscoveryStoreChannel) {
-	glog.V(5).Infof("Adding listener for discovery events")
+	glog.V(5).Infof("Adding listener for discovery events, channel: %V", channel )
 	r.Listeners = append(r.Listeners, channel)
 }
 
@@ -118,6 +114,17 @@ func (ds *DiscoveryStoreService) ListEndpoints() (endpoints []services.Endpoint,
 	ds.RLock()
 	defer ds.RUnlock()
 	return ds.Endpoints, nil
+}
+
+func (ds *DiscoveryStoreService) PushEventToListeners(event EndpointEvent) {	
+	glog.V(3).Infof("Pushing the event: %s to all listeners", event )
+	for _, listener := range ds.Listeners {
+		/* step: we run this in a goroutine not to block */
+		go func(ch DiscoveryEventsChannel) {
+			glog.V(12).Infof("Pushing the event: %s to listener: %v", event, ch )
+			ch <- event
+		}(listener)
+	}
 }
 
 func (ds DiscoveryStoreService) Close() error {
@@ -144,28 +151,34 @@ func (ds *DiscoveryStoreService) Synchronize() error {
 func (r *DiscoveryStoreService) WatchEndpoints() error {
 	glog.V(3).Info("Watching for changes on service: %s", r.Service)
 	go func() {
-		watchChannel := make(DiscoveryEventsChannel,3)
-		defer Close(watchChannel)
-		glog.V(4).Infof("Starting the watch on endpoint changes for service: %s", r.Service )
-		r.Store.Watch(r.Service, watchChannel )
+		glog.V(4).Infof("Starting to watch endpoints for service: %s, path: %s", r.Service, r.Service.Name )
+		watchChannel, err := r.Provider.Watch(&r.Service)
+		if err != nil {
+			glog.Errorf("Unable to start the watcher for service: %s, error: %s", r.Service, err )
+			return
+		}
+		/* step: we simply wait for updates from the watcher */
 		for {
 			switch {
-			case event := <-watchChannel
+			case update := <-watchChannel:
 				glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service)
 				/* step: push the event to the listeners */
-				for _, listener := range r.Listeners {
-					go func(client DiscoveryEventsChannel) {
-						glog.V(5).Infof("Pushing the discovery event to listener channel: %V", client )
-						client <- event
-					}(listener)
-				}
-			case shutdown := <-r.Shutdown
-				glog.Infof("Recieved the shutdown signal, passing downstream to the provider" )
-				r.Store.Close()
+			for _, listener := range r.Listeners {
+				go func(client DiscoveryEventsChannel) {
+					glog.V(5).Infof("Pushing the discovery event to listener channel: %V", client)
+					client <- event
+				}(listener)
+			}
+			case signal := <-r.Shutdown:
+				/* step: we've been requested to shutdown :-( */
+				glog.Infof("Shutting down the watch service on service: %s", r.Service)
+				/* step: signal the provider */
+				r.Provider.Close()
 				return
 			}
 		}
 	}()
+	return nil
 }
 
 func IsDiscoveryStore(uri string) bool {
