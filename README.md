@@ -15,7 +15,7 @@ Embassy run is a single tcp port with iptables dnatting the destination and port
 Example Usage
 -------------
 
-- You already have some means of service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) or [registrator](https://github.com/progrium/registrator) if not)
+- You already have some means of service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) if not)
 
         # docker run -d --privileged=true --net=host -e INTERFACE=[HOST-IFACED] -v /var/run/docker.sock:/var/run/docker.sock -e DISCOVERY="etcd://HOST:4001" gambol99/embassy
 
