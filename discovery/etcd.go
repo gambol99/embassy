@@ -74,25 +74,36 @@ func (e *EtcdClient) List(si *services.Service) ([]services.Endpoint, error) {
 	return list, nil
 }
 
-func (e *EtcdClient) Watch(si *services.Service) error {
+func (e *EtcdClient) Watch(si *services.Service) (updates DiscoveryEventsChannel, err error) {
+	/* step: make a sure to send back updates */
+	updates = make(DiscoveryEventsChannel)
 	/* step: we ONLY want to be alerted if it's a node that has changed */
-	for {
+	go func() {
+		/* the channel to recieve updates from etcd on */
+		watchChannel := make(chan *Response)
+		defer Close(watchChannel)
+		/* step: start the channel for watching */
 		glog.V(5).Infof("Watching service: %s, path: %s", si, si.Name)
-		response, err := e.client.Watch(si.Name, 0, true, nil, nil)
-		if err != nil {
-			glog.Infof("Received an error while watching service path: %s, error: %s", si.Name, err)
-			return err
-		} else {
-			e.waitIndex = response.Node.ModifiedIndex + 1
+		go e.client.Watch(si.Name, 0, true, watchChannel, nil)
+		for {
+			updates, ok := <-watchChannel
+
+
+
+			if err != nil {
+				glog.Infof("Received an error while watching service path: %s, error: %s", si.Name, err)
+				return err
+			}
+			/* check: is this a directory change? */
+			if response.Node.Dir == false {
+				glog.V(6).Infof("Changed occured on path: %s, nodes: %V", si.Name, response.Node.Nodes)
+				return nil
+			}
+			glog.V(9).Infof("Skipping the directory change on path: %s", response.Node.Key)
+			/* else we can continue */
 		}
-		/* check: is this a directory change? */
-		if response.Node.Dir == false {
-			glog.V(6).Infof("Changed occured on path: %s, nodes: %V", si.Name, response.Node.Nodes)
-			return nil
-		}
-		glog.V(9).Infof("Skipping the directory change on path: %s", response.Node.Key)
-		/* else we can continue */
 	}
+	return
 }
 
 func (e *EtcdClient) Paths(path string, paths *[]string) ([]string, error) {

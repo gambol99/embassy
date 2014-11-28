@@ -73,6 +73,8 @@ type DiscoveryStoreProvider interface {
 }
 
 func NewDiscoveryService(cfg *config.Configuration, si services.Service) (DiscoveryStore, error) {
+	/* step: check the cache first of all */
+
 	glog.Infof("Creating a new discovery agent for service: %s", si)
 	/* step: check if the store provider is supported */
 	if !IsDiscoveryStore(cfg.DiscoveryURI) {
