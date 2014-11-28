@@ -31,26 +31,45 @@ const (
 	DISCOVERY_STORES = `^(consul|etcd):\/\/`
 )
 
-type DiscoveryStoreChannel chan services.Service
+type DiscoveryEventsChannel chan EndPoint
 
 type DiscoveryStore interface {
-	ShutdownDiscovery() error
+	/* shutdown the discovery agent */
+	Close() error
+	/* retrieve a list of the current endpoints */
 	ListEndpoints() ([]services.Endpoint, error)
+	/* keep and eye on the endpoints report back on changes */
 	WatchEndpoints()
+	/* synchronize the endpoints for this service */
 	Synchronize() error
+	/* add an listener to discovery events */
+	AddEventListener(DiscoveryEventsChannel)
 }
 
 type DiscoveryStoreService struct {
+	/* locking used to control access to the endpoints */
 	sync.RWMutex
-	Service   services.Service
-	Store     DiscoveryStoreProvider
-	Config    *config.Configuration
+	/* the service agent is running for */
+	Service services.Service
+	/* the backend provider - etcd | consul */
+	Store DiscoveryStoreProvider
+	/* the service configuration */
+	Config *config.Configuration
+	/* the current list of endpoints for this service */
 	Endpoints []services.Endpoint
+	/* channel for listeners on endpoints */
+	Listeners []DiscoveryEventsChannel
+	/* channel for shutdown signal */
+	Shutdown chan bool
 }
 
 type DiscoveryStoreProvider interface {
+	/* get a list of the endpoints from the backend */
 	List(*services.Service) ([]services.Endpoint, error)
+	/* watch for changes on the backend */
 	Watch(*services.Service) error
+	/* shutdown and clean up the provider */
+	Close()
 }
 
 func NewDiscoveryService(cfg *config.Configuration, si services.Service) (DiscoveryStore, error) {
@@ -87,6 +106,11 @@ func NewDiscoveryService(cfg *config.Configuration, si services.Service) (Discov
 	return discovery, nil
 }
 
+func (r *DiscoveryStoreService) AddEventListener(channel DiscoveryStoreChannel) {
+	glog.V(5).Infof("Adding listener for discovery events")
+	r.Listeners = append(r.Listeners, channel)
+}
+
 func (ds *DiscoveryStoreService) ListEndpoints() (endpoints []services.Endpoint, err error) {
 	/* step: pull a list of paths from the backend */
 	ds.RLock()
@@ -114,19 +138,29 @@ func (ds *DiscoveryStoreService) Synchronize() error {
 	return nil
 }
 
-func (ds *DiscoveryStoreService) WatchEndpoints() {
-	glog.V(2).Infof("Watching service: %s", ds.Service)
+/* Goroutine listens to events from the store provider and passes them up the chain to listened (namely the proxy */
+func (r *DiscoveryStoreService) WatchEndpoints() error {
+	glog.V(3).Info("Watching for changes on service: %s", r.Service)
 	go func(ds *DiscoveryStoreService) {
+		watchChannel := make(DiscoveryEventsChannel,3)
+		glog.V(4).Infof("Starting the watch on endpoint changes for service: %s", r.Service )
+		r.Store.Watch(r.Service, watchChannel )
 		for {
-			glog.V(4).Infof("Waiting for endpoints on service: %s to change", ds.Service)
-			/* step: block and wait for something, anything to change */
-			if err := ds.Store.Watch(&ds.Service); err != nil {
-				time.Sleep(5 * time.Second)
-				continue
+			switch {
+			case event := <-watchChannel
+				glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service)
+				/* step: push the event to the listeners */
+				for _, listener := range r.Listeners {
+					go func(client DiscoveryEventsChannel) {
+						glog.V(5).Infof("Pushing the discovery event to listener channel: %V", client )
+						client <- event
+					}(listener)
+				}
+			case shutdown := <-r.Shutdown
+				glog.Infof("Recieved the shutdown signal, passing downstream to the provider" )
+				r.Store.Close()
+				return
 			}
-			glog.V(2).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service)
-			/* step: pull an updated list of the endpoints */
-			ds.Synchronize()
 		}
 	}(ds)
 }
