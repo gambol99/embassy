@@ -14,20 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package endpoints
 
-import "github.com/golang/glog"
+import (
+	"github.com/gambol99/embassy/services"
+)
 
-type FixedBackendStore struct {
-	Definition Definition
+type EndpointsCache struct {
+	stores map[ServiceID]EndpointsStore
 }
 
-func NewFixedServiceStore(definition string) ServiceProvider {
-	glog.Infof("Creating a new fixed backend service, definition: %s", definition)
-	return &FixedBackendStore{Definition{"127.0.0.1", "Fixed", definition}}
+func (r *EndpointsCache) Lookup(si *services.Service) (store EndpointsStore, found bool) {
+	if store, found = r.store[si.ID]; found {
+		return
+	}
+	return nil, false
 }
 
-func (r *FixedBackendStore) StreamServices(channel BackendServiceChannel) error {
-	channel <- r.Definition
-	return nil
+func (r *EndpointsCache) Add(si *services.Service, store EndpointsStore) {
+	store[si.ID] = store
+}
+
+func (r *EndpointsCache) Remove(si *services.Service) {
+	r.stores = delete[si.ID]
 }

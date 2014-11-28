@@ -14,19 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package endpoints
 
 import (
-	"github.com/gambol99/embassy/config"
-	"github.com/golang/glog"
+	"fmt"
 )
 
-func AddDockerServiceStore(store ServiceStore, cfg *config.Configuration) error {
-	docker_store, err := NewDockerServiceStore(cfg)
-	if err != nil {
-		glog.Errorf("Unable to create the docker service store, error: %s", err)
-		return err
-	}
-	store.AddServiceProvider("docker", docker_store)
-	return nil
+type EndPoint string
+
+type Endpoint struct {
+	Path string
+	Service string
+}
+
+func (r Endpoint) String() string {
+	return fmt.Sprintf("endpoint: %s, path: %s", r.Service, r.Path )
 }

@@ -17,22 +17,14 @@ limitations under the License.
 package discovery
 
 import (
-	"fmt"
+	"github.com/gambol99/embassy/services"
 )
 
-type EndPoint string
-type EndPointEvent int
-
-const (
-	CHANGED = 1 << iota
-	DELETED
-)
-
-type EndpointEvent struct {
-	Name     string
-	Event    EndPointEvent
-}
-
-func (r EndpointEvent) String() string {
-	return fmt.Sprintf("event: [%s] %s", r.Name, r.Event)
+type DiscoveryStoreProvider interface {
+	/* get a list of the endpoints from the backend */
+	List(*services.Service) ([]services.Endpoint, error)
+	/* watch for changes on the backend */
+	Watch(*services.Service) (EndpointUpdateChannel,error)
+	/* shutdown and clean up the provider */
+	Close()
 }

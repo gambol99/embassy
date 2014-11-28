@@ -19,13 +19,12 @@ package proxy
 import (
 	"fmt"
 	"net"
-	"strconv"
 	"sync"
-	"syscall"
 
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
+	"github.com/gambol99/embassy/utils"
 )
 
 type ProxyService interface {
@@ -41,7 +40,7 @@ type ProxyStore struct {
 	/* channel for new service requests from the store */
 	ServicesChannel services.ServiceStoreChannel
 	/* channel for shutdown down */
-	ShutdownSignal chan bool
+	Shutdown utils.ShutdownSignalChannel
 	/* service configuration */
 	Config *config.Configuration
 }
@@ -67,7 +66,7 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 	proxy.Listener = listener
 
 	/* step: create the map for holder proxiers */
-	proxy.Proxies = make(map[ProxyID]*Proxier, 0)
+	proxy.Proxies = make(map[ProxyID]ServiceProxy, 0)
 	/* step: create the shutdown channel */
 	proxy.ShutdownSignal = make(chan bool)
 
@@ -81,7 +80,7 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 func (px *ProxyStore) ProxyServices() error {
 	glog.Infof("Starting the TCP Proxy Service")
 	/* step: lets start handling connections */
-	if err := px.ProxyConnnections(); err != nil {
+	if err := px.ProxyConnections(); err != nil {
 		glog.Errorf("Failed to start listening for connections, error: %s", err)
 		return err
 	}
@@ -119,12 +118,12 @@ func (px *ProxyStore) ProxyServices() error {
 }
 
 /*
-	- Wait for connections on the tcp listenr
+	- Wait for connections on the tcp listener
 	- Get the original port before redirection
 	- Lookup the service proxy for this service (src_ip + original_port)
-	- Pass the connectinto the in a go handler
+	- Pass the connection to the in a go handler
 */
-func (px *ProxyStore) ProxyConnnections() error {
+func (px *ProxyStore) ProxyConnections() error {
 	go func() {
 		for {
 			/* wait for a connection */
@@ -147,10 +146,10 @@ func (px *ProxyStore) ProxyConnnections() error {
 				continue
 			}
 
-			glog.V(4).Infof("Accepted TCP connection from %v to %v, original port: %s", conn.RemoteAddr(), conn.LocalAddr(), original_port)
+			glog.V(5).Infof("Accepted TCP connection from %v to %v, original port: %s", conn.RemoteAddr(), conn.LocalAddr(), original_port)
 			/* step: create a proxyId for this */
 			proxyId := GetProxyIDByConnection(source_ipaddress, original_port)
-			/* step: find the proxier responsible for handling this connection */
+			/* step: find the service proxy responsible for handling this service */
 			if proxier, found := px.LookupProxierByProxyID(proxyId); found {
 				/* step: handle the connection in the proxier */
 				go func(client *net.TCPConn) {
@@ -170,33 +169,17 @@ func (px *ProxyStore) ProxyConnnections() error {
 	return nil
 }
 
-func (px *ProxyStore) LookupProxierByProxyID(id ProxyID) (proxier *Proxier, found bool) {
+func (px *ProxyStore) LookupProxierByProxyID(id ProxyID) (proxier ServiceProxy, found bool) {
 	px.RLock()
 	defer px.RUnlock()
 	proxier, found = px.Proxies[id]
 	return
 }
 
-func (px *ProxyStore) AddServiceProxier(proxier *Proxier) {
+func (px *ProxyStore) AddServiceProxier(proxier ServiceProxy) {
 	px.Lock()
 	defer px.Unlock()
-	glog.V(3).Infof("Adding the proxyId: %s to collection of proxies: %d", proxier.ID, len(px.Proxies))
-	px.Proxies[proxier.ID] = proxier
+	px.Proxies[proxier.ID()] = proxier
+	glog.V(3).Infof("Added proxyId: %s to collection of service proxies: %d", proxier.ID(), len(px.Proxies))
 }
 
-const SO_ORIGINAL_DST = 80
-
-func GetOriginalPort(conn *net.TCPConn) (string, error) {
-	descriptor, err := conn.File()
-	if err != nil {
-		glog.Errorf("Unable to get tcp descriptor, connection: %s, error: ", conn.RemoteAddr(), err)
-		return "", err
-	}
-	addr, err := syscall.GetsockoptIPv6Mreq(int(descriptor.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
-	if err != nil {
-		glog.Errorf("Unable to get the original destination port for connection: %s, error: %s", conn.RemoteAddr(), err)
-		return "", err
-	}
-	destination := uint16(addr.Multiaddr[2])<<8 + uint16(addr.Multiaddr[3])
-	return strconv.Itoa(int(destination)), nil
-}

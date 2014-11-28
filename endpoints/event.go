@@ -14,29 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package discovery
+package endpoints
 
 import (
-	"sync"
-
-	"github.com/gambol99/embassy/services"
+	"fmt"
 )
 
-type DiscoveryStoreCache struct {
-	stores map[ServiceID]DiscoveryStore
+type EndPointEvent int
+
+const (
+	CHANGED = 1 << iota
+	DELETED
+)
+
+type EndpointEvent struct {
+	Name     string
+	Event    EndPointEvent
 }
 
-func (r *DiscoveryStoreCache) Lookup(si *services.Service) (store DiscoveryStore, found bool) {
-	if store, found = r.store[si.ID]; found {
-		return
-	}
-	return nil, false
-}
-
-func (r *DiscoveryStoreCache) Add(si *services.Service, store DiscoveryStore) {
-	store[si.ID] = store
-}
-
-func (r *DiscoveryStoreCache) Remove(si *services.Service) {
-	r.stores = delete[si.ID]
+func (r EndpointEvent) String() string {
+	return fmt.Sprintf("event: [%s] %s", r.Name, r.Event)
 }

@@ -19,25 +19,24 @@ package proxy
 import (
 	"errors"
 
-	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
+	"github.com/gambol99/embassy/endpoints"
+)
+const (
+	DEFAULT_BALANCER = "rr"
 )
 
 type LoadBalancer interface {
 	/* select a endpoint for this service */
-	SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (services.Endpoint, error)
+	SelectEndpoint(endpoints []endpoints.Endpoint) (endpoints.Endpoint, error)
 	/* update the endpoints */
-	UpdateEndpoints(service *services.Service, endpoints []services.Endpoint)
+	UpdateEndpoints(endpoints []endpoints.Endpoint)
 }
-
-const (
-	DEFAULT_BALANCER_NAME = "rr"
-)
 
 func NewLoadBalancer(name string) (LoadBalancer, error) {
 	glog.V(5).Infof("Creating new load balancer: %s", name)
 	if name == "" {
-		name = DEFAULT_BALANCER_NAME
+		name = DEFAULT_BALANCER
 	}
 	lb := map[string]LoadBalancer{
 		"rr": NewLoadBalancerRR(),

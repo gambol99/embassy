@@ -20,12 +20,12 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/gambol99/embassy/services"
+	"github.com/gambol99/embassy/endpoints"
 	"github.com/golang/glog"
 )
 
 type LoadBalancerRR struct {
-	sync.Mutex
+	sync.RWMutex
 	NextEndpointIndex int
 }
 
@@ -33,13 +33,12 @@ func NewLoadBalancerRR() LoadBalancer {
 	return new(LoadBalancerRR)
 }
 
-func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []services.Endpoint) (services.Endpoint, error) {
-	glog.V(6).Infof("Load (RR): selecting endpoint service: %s, last index: %d, endpoints: %V", service, lb.NextEndpointIndex, endpoints)
+func (lb *LoadBalancerRR) SelectEndpoint(endpoints []endpoints.Endpoint) (endpoints.Endpoint, error) {
+	lb.Lock()
+	defer lb.Unlock()
 	if len(endpoints) <= 0 {
 		return "", errors.New("The service does not have any endpoints")
 	}
-	lb.Lock()
-	defer lb.Unlock()
 	if lb.NextEndpointIndex > len(endpoints)-1 {
 		lb.NextEndpointIndex = 0
 	}
@@ -48,7 +47,7 @@ func (lb *LoadBalancerRR) SelectEndpoint(service *services.Service, endpoints []
 	return endpoint, nil
 }
 
-func (lb *LoadBalancerRR) UpdateEndpoints(service *services.Service, endpoints []services.Endpoint) {
+func (lb *LoadBalancerRR) UpdateEndpoints(endpoints []services.Endpoint) {
 	glog.V(2).Infof("lb (rr) : updating the endpoints")
 	if len(endpoints) > 0 {
 		lb.NextEndpointIndex = 0

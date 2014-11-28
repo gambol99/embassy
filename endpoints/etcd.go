@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package discovery
+package endpoints
 
 import (
 	"encoding/json"
@@ -40,7 +40,7 @@ const (
 
 func NewEtcdStore(cfg *config.Configuration) (DiscoveryStoreProvider, error) {
 	glog.V(3).Infof("Creating a Etcd client, hosts: %s", cfg.DiscoveryURI)
-	/* step: get the etcd nodes from the dicovery uri */
+	/* step: get the etcd nodes from the discovery uri */
 	return &EtcdClient{etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI)), 0}, nil
 }
 
