@@ -118,7 +118,7 @@ func (ds *DiscoveryStoreService) ListEndpoints() (endpoints []services.Endpoint,
 	return ds.Endpoints, nil
 }
 
-func (ds DiscoveryStoreService) ShutdownDiscovery() error {
+func (ds DiscoveryStoreService) Close() error {
 
 	return nil
 }
@@ -141,8 +141,9 @@ func (ds *DiscoveryStoreService) Synchronize() error {
 /* Goroutine listens to events from the store provider and passes them up the chain to listened (namely the proxy */
 func (r *DiscoveryStoreService) WatchEndpoints() error {
 	glog.V(3).Info("Watching for changes on service: %s", r.Service)
-	go func(ds *DiscoveryStoreService) {
+	go func() {
 		watchChannel := make(DiscoveryEventsChannel,3)
+		defer Close(watchChannel)
 		glog.V(4).Infof("Starting the watch on endpoint changes for service: %s", r.Service )
 		r.Store.Watch(r.Service, watchChannel )
 		for {
@@ -162,7 +163,7 @@ func (r *DiscoveryStoreService) WatchEndpoints() error {
 				return
 			}
 		}
-	}(ds)
+	}()
 }
 
 func IsDiscoveryStore(uri string) bool {
