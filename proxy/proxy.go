@@ -180,6 +180,6 @@ func (px *ProxyStore) AddServiceProxier(proxier ServiceProxy) {
 	px.Lock()
 	defer px.Unlock()
 	px.Proxies[proxier.ID()] = proxier
-	glog.V(3).Infof("Added proxyId: %s to collection of service proxies: %d", proxier.ID(), len(px.Proxies))
+	glog.V(3).Infof("Added proxyId: %s to collection of service proxies, size: %d", proxier.ID(), len(px.Proxies))
 }
 

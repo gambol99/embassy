@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package discovery
+package endpoints
 
 import (
 	"errors"
@@ -39,7 +39,7 @@ func NewDiscoveryService(cfg *config.Configuration, si services.Service) (Discov
 
 	var provider DiscoveryStoreProvider
 	var err error
-	discovery := new(DiscoveryStoreService)
+	discovery := new(EndpointsStore)
 	discovery.Service = si
 	discovery.Config = cfg
 	discovery.Endpoints = make([]services.Endpoint, 0)
