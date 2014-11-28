@@ -14,6 +14,37 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package discovery
 
-const Version = "0.0.3"
+import (
+	"fmt"
+)
+
+const (
+	CHANGED = 0 << iota
+	DELETED
+)
+
+type EndPoint string
+
+type EndPointEvent int
+
+func (r EndpointEvent) String() string {
+	switch r.action {
+	case CHANGED:
+		return "CHANGED"
+	case DELETED:
+		return "DELETED"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+type EndpointEvent struct {
+	endpoint EndPoint
+	event    EndPointEvent
+}
+
+func (r EndpointEvent) String() string {
+	return fmt.Sprintf("event: [%s] %s", r.endpoint, r.event)
+}
