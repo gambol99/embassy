@@ -1,4 +1,6 @@
 
+[![Build Status](https://drone.io/github.com/gambol99/embassy/status.png)](https://drone.io/github.com/gambol99/embassy/latest)
+
 Embassy
 ==========
 Is a service proxy for docker containers, which uses either etcd/consul for service endpoint discovery. It can be run in the following modes;
