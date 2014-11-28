@@ -75,6 +75,12 @@ The descriptor itself has the following format;
     BACKEND_REDIS_SERVICE=/services/prod/redis.master[prod,stats];6379/tcp
 
 --------------
+
+QuickStart
+==========
+
+Take a look at wiki showing a [CoreOS Example](https://github.com/gambol99/embassy/wiki/CoreOS-Example)
+
 Discovery Agent
 ===============
 
