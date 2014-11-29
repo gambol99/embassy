@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-
 	"github.com/gambol99/embassy/endpoints"
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"

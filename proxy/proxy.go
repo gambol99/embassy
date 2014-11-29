@@ -23,8 +23,8 @@ import (
 
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/services"
-	"github.com/golang/glog"
 	"github.com/gambol99/embassy/utils"
+	"github.com/golang/glog"
 )
 
 type ProxyService interface {
@@ -32,17 +32,25 @@ type ProxyService interface {
 }
 
 type ProxyStore struct {
-	sync.RWMutex
 	/* the tcp listener */
 	Listener net.Listener
 	/* a map of the proxy [source_ip+service_port] to the proxier handler */
-	Proxies map[ProxyID]*Proxier
+	Proxies map[ProxyID]Proxier
 	/* channel for new service requests from the store */
 	ServicesChannel services.ServiceStoreChannel
 	/* channel for shutdown down */
 	Shutdown utils.ShutdownSignalChannel
 	/* service configuration */
 	Config *config.Configuration
+}
+
+type ServiceMap struct {
+	/* controls concurrent access to proxy services map */
+	sync.RWMutex
+	/* a map from proxy id to proxy service, we can have multiple id's pointing
+	to the same proxy service
+	 */
+	ProxyServices map[ProxyID]ProxyService
 }
 
 func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (ProxyService, error) {
@@ -132,38 +140,43 @@ func (px *ProxyStore) ProxyConnections() error {
 				glog.Errorf("Accept connection failed: %s", err)
 				continue
 			}
-			/* step: get the destination port and source ip address */
-			source_ipaddress, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-			if err != nil {
-				glog.Errorf("Unable to get the remote ipaddress and port, error: %s", err)
-				conn.Close()
-			}
-			/* step: get the original port */
-			original_port, err := GetOriginalPort(conn.(*net.TCPConn))
-			if err != nil {
-				glog.Errorf("Unable to get the original port, connection: %s, error: %s", conn.RemoteAddr(), err)
-				conn.Close()
-				continue
-			}
+			/* handle the rest with in go routine and return to pick up another connection */
+			go func(connection *net.TCPConn) {
+				/* step: get the destination port and source ip address */
+				source_ipaddress, _, err := net.SplitHostPort(connection.RemoteAddr().String())
+				if err != nil {
+					glog.Errorf("Unable to get the remote ipaddress and port, error: %s", err)
+					connection.Close()
+				}
+				/* step: get the original port */
+				original_port, err := GetOriginalPort(connection.(*net.TCPConn))
+				if err != nil {
+					glog.Errorf("Unable to get the original port, connection: %s, error: %s", connection.RemoteAddr(), err)
+					connection.Close()
+					continue
+				}
 
-			glog.V(5).Infof("Accepted TCP connection from %v to %v, original port: %s", conn.RemoteAddr(), conn.LocalAddr(), original_port)
-			/* step: create a proxyId for this */
-			proxyId := GetProxyIDByConnection(source_ipaddress, original_port)
-			/* step: find the service proxy responsible for handling this service */
-			if proxier, found := px.LookupProxierByProxyID(proxyId); found {
-				/* step: handle the connection in the proxier */
-				go func(client *net.TCPConn) {
-					if err := proxier.HandleTCPConnection(client); err != nil {
-						glog.Errorf("Failed to handle the connection: %s, proxyid: %s, error: %s", client.RemoteAddr(), proxyId, err)
-						if err := client.Close(); err != nil {
-							glog.Errorf("Failed to close the connection connection: %s, error: %s", client.RemoteAddr(), err)
+				glog.V(5).Infof("Accepted TCP connection from %v to %v, original port: %s",
+					connection.RemoteAddr(), connection.LocalAddr(), original_port)
+				/* step: create a proxyId for this */
+				proxyId := GetProxyIDByConnection(source_ipaddress, original_port)
+				/* step: find the service proxy responsible for handling this service */
+				if proxier, found := px.LookupProxierByProxyID(proxyId); found {
+					/* step: handle the connection in the proxier */
+					go func() {
+						if err := proxier.HandleTCPConnection(connection); err != nil {
+							glog.Errorf("Failed to handle the connection: %s, proxyid: %s, error: %s", connection.RemoteAddr(),
+								proxyId, err)
+							if err := connection.Close(); err != nil {
+								glog.Errorf("Failed to close the connection connection: %s, error: %s", connection.RemoteAddr(), err)
+							}
 						}
-					}
-				}(conn.(*net.TCPConn))
-			} else {
-				glog.Errorf("Failed to handle service, we do not have a proxier for: %s", proxyId)
-				conn.Close()
-			}
+					}()
+				} else {
+					glog.Errorf("Failed to handle service, we do not have a proxier for: %s", proxyId)
+					connection.Close()
+				}
+			}(conn)
 		}
 	}()
 	return nil

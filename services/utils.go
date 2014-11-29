@@ -17,9 +17,19 @@ limitations under the License.
 package services
 
 import (
+	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/config"
 	"github.com/golang/glog"
 )
+
+func NewServiceStore(config *config.Configuration) ServiceStore {
+	/* step: has the backend been hardcoded on the command line, if so we use a fixed backend service */
+	return &ServiceStoreImpl{config,
+		make(BackendServiceChannel, 5),      	// channel to pass to providers
+		make(map[string]ServiceProvider, 0), 	// a map of providers
+		make([]ServiceStoreChannel, 0),			// a list of people listening for service updates
+		make(utils.ShutdownSignalChannel)}
+}
 
 func AddDockerServiceStore(store ServiceStore, cfg *config.Configuration) error {
 	docker_store, err := NewDockerServiceStore(cfg)
