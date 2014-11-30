@@ -31,8 +31,6 @@ import (
 var endpointDialTimeout = []time.Duration{1, 2, 4}
 
 type Proxier struct {
-	/* the proxy id - container ip + port */
-	ID        ProxyID
 	/* the service the proxy is proxying for */
 	Service   services.Service
 	/* the discovery agent for this service */
@@ -43,8 +41,6 @@ type Proxier struct {
 }
 
 type ServiceProxy interface {
-	/* return the proxy of this proxier */
-	ID() string
 	/* close all the assets associated to this service */
 	Close();
 	/* handle a inbound connection */
