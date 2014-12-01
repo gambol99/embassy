@@ -38,7 +38,7 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 
 	/* step: create a channel to listen for new services from the store */
 	glog.V(4).Infof("Creating a services channel for the proxy")
-	proxy.ServicesChannel = make(services.ServiceStoreChannel,5)
+	proxy.ServicesChannel = make(services.ServiceStoreChannel,10)
 	store.AddServiceListener(proxy.ServicesChannel)
 
 	/* step: create a tcp listener for the proxy service */

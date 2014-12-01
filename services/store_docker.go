@@ -120,9 +120,9 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 			glog.V(2).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
 			switch event.Status {
 			case DOCKER_START:
-				go r.ProcessDockerCreation(event.ID,channel)
+				//go r.ProcessDockerCreation(event.ID,channel)
 			case DOCKER_DESTROY:
-				go r.ProcessDockerDestroy(event.ID,channel)
+				//go r.ProcessDockerDestroy(event.ID,channel)
 			}
 			glog.V(5).Infof("Docker event: %s, handled, looping around", event.Status)
 		}
@@ -143,17 +143,19 @@ func (r *DockerServiceStore) ProcessDockerCreation(containerID string, channel B
 	r.Add(containerID, definitions )
 	/* step: push the service */
 	r.PushServices(channel, definitions, DEFINITION_SERVICE_ADDED )
+	glog.V(4).Infof("Successfully added services from container: %s", containerID[:12])
 	return nil
 }
 
-func (r *DockerServiceStore) ProcessDockerDestroy(containerId string, channel BackendServiceChannel) error {
-	glog.V(4).Infof("Docker destruction event, container: %s", containerId[:12] )
-	if definitions, found := r.Has(containerId); found {
-		glog.V(4).Infof("Found %s definitions for container: %s", len(definitions), containerId[:12])
+func (r *DockerServiceStore) ProcessDockerDestroy(containerID string, channel BackendServiceChannel) error {
+	glog.V(4).Infof("Docker destruction event, container: %s", containerID[:12] )
+	if definitions, found := r.Has(containerID); found {
+		glog.V(4).Infof("Found %s definitions for container: %s", len(definitions), containerID[:12])
 		r.PushServices(channel, definitions, DEFINITION_SERVICE_REMOVED)
-		r.Remove(containerId)
+		r.Remove(containerID)
+		glog.V(4).Infof("Successfully removed services from container: %s", containerID[:12])
 	} else {
-		glog.V(4).Infof("Failed to find any defintitions from container: %s", containerId[:12] )
+		glog.V(4).Infof("Failed to find any defintitions from container: %s", containerID[:12] )
 	}
 	return nil
 }
@@ -170,16 +172,9 @@ func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChann
 	glog.Infof("Looking for any container already running and checking for services")
 	if containers, err := r.Docker.ListContainers(docker.ListContainersOptions{}); err == nil {
 		/* step: iterate the containers and look for services */
-		for _, containerID := range containers {
-			services, err := r.InspectContainerServices(containerID.ID)
-			if err != nil {
-				glog.Errorf("Unable to inspect container: %s for services, error: %s", containerID.ID[:12], err)
-				continue
-			}
-			/* push the services */
-			r.PushServices(channel, services, DEFINITION_SERVICE_ADDED )
-			/* add to service map */
-			r.Add(containerID.ID,services)
+		for _, container := range containers {
+			//go r.ProcessDockerCreation(container.ID,channel)
+			var _ = container
 		}
 	} else {
 		glog.Errorf("Failed to list the currently running container, error: %s", err)
