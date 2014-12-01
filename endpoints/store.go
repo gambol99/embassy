@@ -63,7 +63,7 @@ type EndpointsStoreService struct {
 }
 
 func (r *EndpointsStoreService) AddEventListener(channel EndpointChannel) {
-	glog.V(5).Infof("Adding listener for discovery events, channel: %V", channel )
+	glog.V(5).Infof("Adding listener for endpoint events, channel: %V", channel )
 	r.Listeners = append(r.Listeners, channel)
 }
 

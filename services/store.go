@@ -41,7 +41,7 @@ type ServiceStoreChannel chan ServiceEvent
 the channel is used to send events from the backends to the service store and
 then upstream to the proxy service
  */
-type BackendServiceChannel chan Definition
+type BackendServiceChannel chan DefinitionEvent
 /*
 The service provider reads in service request from the containers and push them
 up stream to the ServiceStore
@@ -85,7 +85,7 @@ func (r *ServiceStoreImpl) PushServiceEvent(service ServiceEvent) {
 	for _, channel := range r.Listeners {
 		go func() {
 			channel <- service
-			glog.V(7).Infof("Pushed the service event: %s to listener: %V", service, channel )
+			glog.V(12).Infof("Pushed the service event: %s to listener: %V", service, channel )
 		}()
 	}
 }
@@ -121,9 +121,9 @@ func (r *ServiceStoreImpl) FindServices() error {
 				var event ServiceEvent
 				event.Service = service
 				switch definition.Operation {
-				case SERVICE_ADDED:
+				case DEFINITION_SERVICE_ADDED:
 					event.Operation = SERVICE_REQUEST
-				case SERVICE_REMOVED:
+				case DEFINITION_SERVICE_REMOVED:
 					event.Operation = SERVICE_CLOSED
 				default:
 					glog.Errorf("Unable definition operation: %d", definition.Operation )

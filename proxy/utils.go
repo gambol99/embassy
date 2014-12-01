@@ -38,7 +38,7 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 
 	/* step: create a channel to listen for new services from the store */
 	glog.V(4).Infof("Creating a services channel for the proxy")
-	proxy.ServicesChannel = make(services.ServiceStoreChannel)
+	proxy.ServicesChannel = make(services.ServiceStoreChannel,5)
 	store.AddServiceListener(proxy.ServicesChannel)
 
 	/* step: create a tcp listener for the proxy service */
@@ -62,35 +62,34 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 	return proxy, nil
 }
 
-func NewServiceProxy(cfg *config.Configuration, si services.Service) (ServiceProxy, error) {
-	glog.Infof("Creating a new proxier, service: %s", si )
+func NewServiceProxy(cfg *config.Configuration, service services.Service) (ServiceProxy, error) {
+	glog.Infof("Creating a new proxier, service: %s", service )
 
 	proxier := new(Proxier)
-	proxier.Service = si
+	proxier.Service = service
+
 	/* step: create a load balancer on the service */
-	balancer, err := NewLoadBalancer("rr")
-	if err != nil {
-		glog.Errorf("Failed to create load balancer for proxier, service: %s, error: %s", si, err)
+	if balancer, err := NewLoadBalancer("rr"); err != nil {
+		glog.Errorf("Failed to create load balancer for proxier, service: %s, error: %s", service, err)
 		return nil, err
+	} else {
+		proxier.Balancer = balancer
 	}
-	proxier.Balancer = balancer
+
 	/* step: create a discovery agent on the proxier service */
-	endpoints, err := endpoints.NewEndpointsService(cfg, si)
-	if err != nil {
-		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", si, err)
+	if endpoints, err := endpoints.NewEndpointsService(cfg, service); err != nil {
+		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", service, err)
 		return nil, err
-	}
-	/* step: synchronize the endpoints */
-	proxier.Endpoints = endpoints
-	if err = proxier.Endpoints.Synchronize(); err != nil {
-		glog.Errorf("Failed to synchronize the endpoints on proxier startup, error: %s", err)
+	} else {
+		proxier.Endpoints = endpoints
+		if err = proxier.Endpoints.Synchronize(); err != nil {
+			glog.Errorf("Failed to synchronize the endpoints on proxier startup, error: %s", err)
+		}
 	}
 	/* step: start the discovery agent watcher */
 	proxier.Endpoints.WatchEndpoints()
-
 	/* step: handle the events */
 	proxier.HandleEvents()
-
 	return proxier, nil
 }
 

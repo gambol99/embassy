@@ -34,13 +34,15 @@ import (
 */
 
 const (
-	SERVICE_ADDED 	= 0
-	SERVICE_REMOVED = 1
+	DEFINITION_SERVICE_ADDED 	= 0
+	DEFINITION_SERVICE_REMOVED = 1
 )
 
-type Definition struct {
+type DefinitionOperation int
+
+type DefinitionEvent struct {
 	SourceAddress, Name, Definition string
-	Operation int
+	Operation DefinitionOperation
 }
 
 var (
@@ -50,16 +52,16 @@ var (
 	BD_SERVICE_TAGS = regexp.MustCompile(`\[(.*)\]`)
 )
 
-func (b Definition) IsValid() bool {
+func (b DefinitionEvent) IsValid() bool {
 	return BD_DEFINITION.MatchString(b.Definition)
 }
 
-func (b Definition) String() string {
+func (b DefinitionEvent) String() string {
 	return fmt.Sprintf("definition: %s|%s : %s operation: %d ", b.SourceAddress, b.Name, b.Definition, b.Operation )
 }
 
 /* /services/prod/redis/master/6379/*;PORT;OPTION=VALUE */
-func (b Definition) GetService() (service Service, err error) {
+func (b DefinitionEvent) GetService() (service Service, err error) {
 	if matched := b.IsValid(); matched {
 		sections := strings.Split(b.Definition, ";")
 		section_name := sections[0]

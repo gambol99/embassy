@@ -66,7 +66,7 @@ func (px *ProxyStore) Start() error {
 				glog.Infof("Sending the kill signal to proxy: %s", proxier )
 			}
 		case event := <-px.ServicesChannel:
-			glog.Infof("Recieved a new service request, service: %s", event.Service )
+			glog.Infof("ProxyService recieved service update, service: %s, operation: %s", event.Service, event.Operation )
 			/* step: check if the service is already being processed */
 			if err := px.ProcessServiceEvent(&event); err != nil {
 				glog.Errorf("Unable to process the service request: %s, error: %s", event.Service, err )
@@ -91,10 +91,10 @@ func (px *ProxyStore) ProcessServiceEvent(si *services.ServiceEvent) error {
 }
 
 /*
-	- Wait for connections on the tcp listener
-	- Get the original port before redirection
-	- Lookup the service proxy for this service (src_ip + original_port)
-	- Pass the connection to the in a go handler
+- Wait for connections on the tcp listener
+- Get the original port before redirection
+- Lookup the service proxy for this service (src_ip + original_port)
+- Pass the connection to the in a go handler
 */
 func (px *ProxyStore) ProxyConnections() error {
 	go func() {
@@ -146,7 +146,7 @@ func (px *ProxyStore) ProxyConnections() error {
 	return nil
 }
 
-func (px *ProxyStore) LookupProxyByServiceId(id services.ServiceID) (ServiceProxy,bool) {
+func (px *ProxyStore) LookupProxierByServiceId(id services.ServiceID) (ServiceProxy,bool) {
 	for _, service := range px.Proxies {
 		if service.GetService().ID == id {
 			glog.V(3).Infof("Found service proxy for service id: %s", id )
@@ -170,7 +170,7 @@ func (px *ProxyStore) CreateServiceProxy(si services.Service) error {
 	/* step: check if a service proxy already exists */
 	px.Lock()
 	defer px.Unlock()
-	if proxy, found := px.LookupProxyByServiceId(si.ID); found {
+	if proxy, found := px.LookupProxierByServiceId(si.ID); found {
 		/* the proxy service already exists, we simply map a proxyID -> ProxyService */
 		glog.V(3).Infof("A proxy service already exists for service: %s, mapping new proxy id: %s", si, proxyID )
 		px.AddServiceProxy(proxyID, proxy )
@@ -214,15 +214,8 @@ func (px *ProxyStore) DestroyServiceProxy(si services.Service) error {
 	return nil
 }
 
-
 func (px *ProxyStore) AddServiceProxy(proxyID ProxyID, proxy ServiceProxy) {
 	glog.V(8).Infof("Adding Service Proxy, service: %s, service id: %s", proxy.GetService(), proxy.GetService().ID )
 	px.Proxies[proxyID] = proxy
 	glog.V(3).Infof("Added proxyId: %s to collection of service proxies, size: %d", proxyID, len(px.Proxies))
 }
-
-func (px *ProxyStore) RemoveServiceProxy(proxyID ProxyID, si services.Service) error {
-
-	return nil
-}
-

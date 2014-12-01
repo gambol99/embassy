@@ -39,7 +39,6 @@ const (
 type DockerEventsChannel chan *docker.APIEvents
 
 type DockerServiceStore struct {
-	sync.RWMutex
 	/* docker api client */
 	Docker *docker.Client
 	/* the service configuraton */
@@ -47,7 +46,42 @@ type DockerServiceStore struct {
 	/* the docker events channel */
 	Events DockerEventsChannel
 	/* map of container id to definition */
-	Services map[string][]Definition
+	ServiceMap
+}
+
+type ServiceMap struct {
+	sync.RWMutex
+	Services map[string][]DefinitionEvent
+}
+
+func (r *ServiceMap) Add(containerID string, definitions []DefinitionEvent) {
+	glog.Infof("LOCKING")
+	r.Lock()
+	glog.Infof("LOCKED")
+	if r.Services == nil {
+		r.Services = make(map[string][]DefinitionEvent)
+	}
+	defer r.Unlock()
+	r.Services[containerID] = definitions
+}
+
+func (r *ServiceMap) Remove(containerID string) {
+	glog.Infof("LOCKING")
+	r.Lock()
+	glog.Infof("LOCKED")
+	defer r.Unlock()
+	delete(r.Services, containerID )
+}
+
+func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent,bool) {
+	glog.Infof("LOCKING")
+	r.RLock()
+	glog.Infof("LOCKED")
+	defer r.RUnlock()
+	if definitions, found := r.Services[containerId]; found {
+		return definitions, true
+	}
+	return nil, false
 }
 
 func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
@@ -66,8 +100,7 @@ func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
 	docker_store := new(DockerServiceStore)
 	docker_store.Docker = client
 	docker_store.Config = cfg
-	docker_store.Events = make(DockerEventsChannel,5)
-	docker_store.Services = make(map[string][]Definition)
+	docker_store.Events = make(DockerEventsChannel,10)
 	return docker_store, nil
 }
 
@@ -87,38 +120,9 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 			glog.V(2).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
 			switch event.Status {
 			case DOCKER_START:
-				go func() {
-					services, err := r.InspectContainerServices(event.ID)
-					if err != nil {
-						glog.Errorf("Unable to inspect container: %s for services, error: %s", event.ID[:12], err)
-						return
-					}
-					if len(services) <= 0 {
-						glog.V(2).Infof("No service request found in container: %s", event.ID[:12])
-						return
-					}
-					r.Lock()
-					defer r.Unlock()
-					r.Services[event.ID] = services
-					for _, service := range services {
-						r.PushService(channel, service, event.ID[:12])
-					}
-				}()
+				go r.ProcessDockerCreation(event.ID,channel)
 			case DOCKER_DESTROY:
-				go func() {
-					/* step: did the docker export a service? */
-					r.Lock()
-					defer r.Unlock()
-					if definitions, found := r.Services[event.ID]; found {
-						for _, definition := range definitions {
-							definition.Operation = SERVICE_REMOVED
-							r.PushService(channel, definition, event.ID[:12])
-
-						}
-					}
-					delete(r.Services,event.ID)
-				}()
-			default:
+				go r.ProcessDockerDestroy(event.ID,channel)
 			}
 			glog.V(5).Infof("Docker event: %s, handled, looping around", event.Status)
 		}
@@ -127,9 +131,39 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 	return nil
 }
 
-func (r *DockerServiceStore) PushService(channel BackendServiceChannel, definition Definition, containerId string) {
-	glog.V(2).Infof("Pushing service: %s, container: %s ", definition, containerId)
-	channel <- definition
+func (r *DockerServiceStore) ProcessDockerCreation(containerID string, channel BackendServiceChannel) error {
+	/* step: inspect the service of the container */
+	definitions, err := r.InspectContainerServices(containerID)
+	if err != nil {
+		glog.Errorf("Unable to inspect container: %s for services, error: %s", containerID[:12], err)
+		return err
+	}
+	glog.V(4).Infof("Container: %s, services found: %d", containerID[:12], len(definitions) )
+	/* step: add the container to the service map */
+	r.Add(containerID, definitions )
+	/* step: push the service */
+	r.PushServices(channel, definitions, DEFINITION_SERVICE_ADDED )
+	return nil
+}
+
+func (r *DockerServiceStore) ProcessDockerDestroy(containerId string, channel BackendServiceChannel) error {
+	glog.V(4).Infof("Docker destruction event, container: %s", containerId[:12] )
+	if definitions, found := r.Has(containerId); found {
+		glog.V(4).Infof("Found %s definitions for container: %s", len(definitions), containerId[:12])
+		r.PushServices(channel, definitions, DEFINITION_SERVICE_REMOVED)
+		r.Remove(containerId)
+	} else {
+		glog.V(4).Infof("Failed to find any defintitions from container: %s", containerId[:12] )
+	}
+	return nil
+}
+
+func (r *DockerServiceStore) PushServices(channel BackendServiceChannel, definitions []DefinitionEvent, operation DefinitionOperation) {
+	for _, definition := range definitions {
+		glog.V(3).Infof("Pushing service: %s to services store", definition )
+		definition.Operation = operation
+		channel <- definition
+	}
 }
 
 func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChannel) error {
@@ -142,9 +176,10 @@ func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChann
 				glog.Errorf("Unable to inspect container: %s for services, error: %s", containerID.ID[:12], err)
 				continue
 			}
-			for _, service := range services {
-				r.PushService(channel, service, containerID.ID[:12])
-			}
+			/* push the services */
+			r.PushServices(channel, services, DEFINITION_SERVICE_ADDED )
+			/* add to service map */
+			r.Add(containerID.ID,services)
 		}
 	} else {
 		glog.Errorf("Failed to list the currently running container, error: %s", err)
@@ -159,8 +194,8 @@ func (r *DockerServiceStore) GetContainer(containerID string) (container *docker
 	return
 }
 
-func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Definition, error) {
-	definitions := make([]Definition, 0)
+func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]DefinitionEvent, error) {
+	definitions := make([]DefinitionEvent, 0)
 	/* step: get the container config */
 	container, err := r.GetContainer(containerID)
 	if err != nil {
@@ -187,7 +222,7 @@ func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Def
 		if r.IsBackendService(key, value) {
 			glog.V(2).Infof("Found backend request in container: %s, service: %s", containerID, value)
 			/* step: create a backend definition and append to list */
-			var definition Definition
+			var definition DefinitionEvent
 			definition.Name = key
 			definition.SourceAddress = source_address
 			definition.Definition = value
