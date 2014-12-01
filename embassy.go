@@ -25,8 +25,6 @@ import (
 	"runtime"
 )
 
-var proxies = make(map[services.ServiceID]proxy.ProxyService)
-
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -47,7 +45,7 @@ func main() {
 	/* kick of the proxy and wait */
 	done := make(chan bool)
 	go func() {
-		if err := proxy_store.ProxyServices(); err != nil {
+		if err := proxy_store.Start(); err != nil {
 			glog.Errorf("Failed to start the proxy service, error: %s", err)
 			return
 		}

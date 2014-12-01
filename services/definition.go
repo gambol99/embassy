@@ -33,8 +33,14 @@ import (
   BACKEND_REDIS_MASTER=/services/prod/redis/master/6379/*;PORT;OPTION=VALUE,;
 */
 
+const (
+	SERVICE_ADDED 	= 0
+	SERVICE_REMOVED = 1
+)
+
 type Definition struct {
 	SourceAddress, Name, Definition string
+	Operation int
 }
 
 var (
@@ -49,7 +55,7 @@ func (b Definition) IsValid() bool {
 }
 
 func (b Definition) String() string {
-	return fmt.Sprintf("definition: %s|%s : %s ", b.SourceAddress, b.Name, b.Definition)
+	return fmt.Sprintf("definition: %s|%s : %s operation: %d ", b.SourceAddress, b.Name, b.Definition, b.Operation )
 }
 
 /* /services/prod/redis/master/6379/*;PORT;OPTION=VALUE */

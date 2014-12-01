@@ -20,6 +20,7 @@ import (
 	"errors"
 	"regexp"
 
+	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
@@ -29,7 +30,7 @@ const (
 	DISCOVERY_STORES = `^(consul|etcd):\/\/`
 )
 
-func NewDiscoveryService(cfg *config.Configuration, si services.Service) (DiscoveryStore, error) {
+func NewEndpointsService(cfg *config.Configuration, si services.Service) (EndpointsStore, error) {
 	/* step: check the cache first of all */
 	glog.Infof("Creating a new discovery agent for service: %s", si)
 	/* step: check if the store provider is supported */
@@ -37,12 +38,14 @@ func NewDiscoveryService(cfg *config.Configuration, si services.Service) (Discov
 		return nil, errors.New("The backend discovery store specified is not supported")
 	}
 
-	var provider DiscoveryStoreProvider
+	var provider EndpointsProvider
 	var err error
-	discovery := new(EndpointsStore)
-	discovery.Service = si
-	discovery.Config = cfg
-	discovery.Endpoints = make([]services.Endpoint, 0)
+	endpoints := new(EndpointsStoreService)
+	endpoints.Service = si
+	endpoints.Config = cfg
+	endpoints.Endpoints = make([]Endpoint, 0)
+	endpoints.Listeners = make([]EndpointChannel,0)
+	endpoints.Shutdown = make(utils.ShutdownSignalChannel)
 
 	/* step: create the backend provioder */
 	switch cfg.GetDiscoveryURI().Scheme {
@@ -57,8 +60,8 @@ func NewDiscoveryService(cfg *config.Configuration, si services.Service) (Discov
 		glog.Errorf("Unable to initialize the Etcd backend store, error: %s", err)
 		return nil, err
 	}
-	discovery.Store = provider
-	return discovery, nil
+	endpoints.Provider = provider
+	return endpoints, nil
 }
 
 func IsDiscoveryStore(uri string) bool {

@@ -16,17 +16,4 @@ limitations under the License.
 
 package endpoints
 
-import (
-	"fmt"
-)
-
-type EndPoint string
-
-type Endpoint struct {
-	Path string
-	Service string
-}
-
-func (r Endpoint) String() string {
-	return fmt.Sprintf("endpoint: %s, path: %s", r.Service, r.Path )
-}
+type Endpoint string

@@ -26,12 +26,15 @@ import (
 	"github.com/golang/glog"
 )
 
-type DiscoveryEventsChannel chan EndPoint
-type EndpointUpdateChannel chan EndPoint
+/* a channel used by the provider to say something has changed */
+type EndpointChangedChannel chan EndpointChangedEvent
+
+/* a channel used by the endpoints store to send changes to services to the proxy service */
+type EndpointChannel chan EndpointEvent
 
 type EndpointsStore interface {
 	/* shutdown the discovery agent */
-	Close() error
+	Close()
 	/* retrieve a list of the current endpoints */
 	ListEndpoints() ([]Endpoint, error)
 	/* keep and eye on the endpoints report back on changes */
@@ -39,7 +42,7 @@ type EndpointsStore interface {
 	/* synchronize the endpoints for this service */
 	Synchronize() error
 	/* add an listener to discovery events */
-	AddEventListener(DiscoveryEventsChannel)
+	AddEventListener(EndpointChannel)
 }
 
 type EndpointsStoreService struct {
@@ -48,50 +51,57 @@ type EndpointsStoreService struct {
 	/* the service agent is running for */
 	Service services.Service
 	/* the backend provider - etcd | consul | something else */
-	Provider DiscoveryStoreProvider
+	Provider EndpointsProvider
 	/* the service configuration */
 	Config *config.Configuration
 	/* the current list of endpoints for this service */
 	Endpoints []Endpoint
 	/* channel for listeners on endpoints */
-	Listeners []DiscoveryEventsChannel
+	Listeners []EndpointChannel
 	/* channel for shutdown signal */
 	Shutdown utils.ShutdownSignalChannel
 }
 
-func (r *EndpointsStore) AddEventListener(channel DiscoveryEventsChannel) {
+func (r *EndpointsStoreService) AddEventListener(channel EndpointChannel) {
 	glog.V(5).Infof("Adding listener for discovery events, channel: %V", channel )
 	r.Listeners = append(r.Listeners, channel)
 }
 
-func (ds *EndpointsStore) ListEndpoints() (endpoints []Endpoint, err error) {
+func (ds *EndpointsStoreService) ListEndpoints() (endpoints []Endpoint, err error) {
 	/* step: pull a list of paths from the backend */
 	ds.RLock()
 	defer ds.RUnlock()
 	return ds.Endpoints, nil
 }
 
-func (ds *EndpointsStore) PushEventToListeners(event EndpointEvent) {
+func (ds *EndpointsStoreService) PushEventToListeners(event EndpointChangedEvent) {
 	glog.V(3).Infof("Pushing the event: %s to all listeners", event )
+
+	/* create the event for us and wrap the service */
+	var updateEvent EndpointEvent
+	updateEvent.Service = ds.Service
+	updateEvent.Event = event.Event
+
+	/* step: send the event to all the listeners */
 	for _, listener := range ds.Listeners {
 		/* step: we run this in a goroutine not to block */
-		go func(ch DiscoveryEventsChannel) {
-			glog.V(12).Infof("Pushing the event: %s to listener: %v", event, ch )
-			ch <- event
-		}(listener)
+		go func() {
+			glog.V(12).Infof("Pushing the event: %s to listener: %v", event, listener )
+			listener <- updateEvent
+		}()
 	}
 }
 
-func (ds EndpointsStore) Close() error {
-
-	return nil
+func (ds EndpointsStoreService) Close() {
+	glog.Infof("Shutting down the Endpoints Store")
+	ds.Shutdown <- true
 }
 
-func (ds *EndpointsStore) Synchronize() error {
+func (ds *EndpointsStoreService) Synchronize() error {
 	glog.V(3).Infof("Synchronize the endpoints for service: %s", ds.Service)
 	ds.Lock()
 	defer ds.Unlock()
-	endpoints, err := ds.Store.List(&ds.Service)
+	endpoints, err := ds.Provider.List(&ds.Service)
 	if err != nil {
 		glog.Errorf("Attempt to resynchronize the endpoints failed for service: %s, error: %s", ds.Service, err)
 		return errors.New("Failed to resync the endpoints")
@@ -103,37 +113,35 @@ func (ds *EndpointsStore) Synchronize() error {
 }
 
 /* Go-routine listens to events from the store provider and passes them up the chain to listened (namely the proxy */
-func (r *EndpointsStore) WatchEndpoints() error {
-	glog.V(3).Info("Watching for changes on service: %s", r.Service)
+func (ds *EndpointsStoreService) WatchEndpoints() {
+	glog.V(3).Infof("Watching for changes on service: %s", ds.Service)
 	go func() {
-		/* Never say die ! */
+		/* Never say die ! unless they tell us to */
 		for {
-			glog.V(4).Infof("Starting to watch endpoints for service: %s, path: %s", r.Service, r.Service.Name)
-			watchChannel, err := r.Provider.Watch(&r.Service)
+			glog.V(4).Infof("Starting to watch endpoints for service: %s, path: %s", ds.Service, ds.Service.Name )
+			watchChannel, err := ds.Provider.Watch(&ds.Service)
 			if err != nil {
-				glog.Errorf("Unable to start the watcher for service: %s, error: %s", r.Service, err)
+				glog.Errorf("Unable to start the watcher for service: %s, error: %s", ds.Service, err )
 				return
 			}
-			/* step: we simply wait for updates from the watcher */
+			/* step: we simply wait for updates from the watcher or an kill switch */
 			for {
-				var update EndpointEvent
-				switch {
+				select {
 				case update := <-watchChannel:
-					glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints", r.Service)
+					glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service )
+					/* step: update our endpoints */
+					ds.Synchronize()
 					/* step: push the event to the listeners */
-					go r.PushEventToListeners(update)
-
-				case <-r.Shutdown:
-					/* step: we've been requested to shutdown :-( */
-					glog.Infof("Shutting down the watch service on service: %s", r.Service)
+					go ds.PushEventToListeners(update)
+				case <-ds.Shutdown:
+					glog.Infof("Shutting down the provider for service: %s", ds.Service )
 					/* step: push downstream the kill signal to provider */
-					r.Provider.Close()
+					ds.Provider.Close()
 					return
 				}
 			}
 		}
 	}()
-	return nil
 }
 
 

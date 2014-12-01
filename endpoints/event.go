@@ -18,20 +18,35 @@ package endpoints
 
 import (
 	"fmt"
+
+	"github.com/gambol99/embassy/services"
 )
 
-type EndPointEvent int
+type EndPointChangeAction int
 
 const (
 	CHANGED = 1 << iota
 	DELETED
 )
 
+type EndpointChangedEvent struct {
+	Path 	 string
+	Event 	 EndPointChangeAction
+}
+
+func (r EndpointChangedEvent) String() string {
+	return fmt.Sprintf("event: [%s] %s", r.Path, r.Event )
+}
+
+/*
+The event which is sent to the listeners
+ */
 type EndpointEvent struct {
-	Name     string
-	Event    EndPointEvent
+	Event    EndPointChangeAction
+	Service  services.Service
 }
 
 func (r EndpointEvent) String() string {
-	return fmt.Sprintf("event: [%s] %s", r.Name, r.Event)
+	return fmt.Sprintf("action: %s, service: %s", r.Event, r.Service )
 }
+

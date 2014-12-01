@@ -21,6 +21,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gambol99/embassy/config"
@@ -38,9 +39,15 @@ const (
 type DockerEventsChannel chan *docker.APIEvents
 
 type DockerServiceStore struct {
-	Docker *docker.Client /* docker api client */
+	sync.RWMutex
+	/* docker api client */
+	Docker *docker.Client
+	/* the service configuraton */
 	Config *config.Configuration
-	Events DockerEventsChannel /* docker events channel */
+	/* the docker events channel */
+	Events DockerEventsChannel
+	/* map of container id to definition */
+	Services map[string][]Definition
 }
 
 func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
@@ -56,7 +63,12 @@ func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
 		glog.Errorf("Unable to create a docker client, error: %s", err)
 		return nil, err
 	}
-	return &DockerServiceStore{client, cfg, make(DockerEventsChannel)}, nil
+	docker_store := new(DockerServiceStore)
+	docker_store.Docker = client
+	docker_store.Config = cfg
+	docker_store.Events = make(DockerEventsChannel,5)
+	docker_store.Services = make(map[string][]Definition)
+	return docker_store, nil
 }
 
 func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error {
@@ -65,7 +77,6 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 		glog.Errorf("Unable to add our docker client as an event listener, error:", err)
 		return err
 	}
-
 	/* step: create a goroutine to listen to the events */
 	go func() {
 		glog.V(5).Infof("Entering into the docker events loop")
@@ -76,7 +87,7 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 			glog.V(2).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
 			switch event.Status {
 			case DOCKER_START:
-				go func(e *docker.APIEvents) {
+				go func() {
 					services, err := r.InspectContainerServices(event.ID)
 					if err != nil {
 						glog.Errorf("Unable to inspect container: %s for services, error: %s", event.ID[:12], err)
@@ -86,12 +97,30 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 						glog.V(2).Infof("No service request found in container: %s", event.ID[:12])
 						return
 					}
+					r.Lock()
+					defer r.Unlock()
+					r.Services[event.ID] = services
 					for _, service := range services {
 						r.PushService(channel, service, event.ID[:12])
 					}
-				}(event)
+				}()
+			case DOCKER_DESTROY:
+				go func() {
+					/* step: did the docker export a service? */
+					r.Lock()
+					defer r.Unlock()
+					if definitions, found := r.Services[event.ID]; found {
+						for _, definition := range definitions {
+							definition.Operation = SERVICE_REMOVED
+							r.PushService(channel, definition, event.ID[:12])
+
+						}
+					}
+					delete(r.Services,event.ID)
+				}()
+			default:
 			}
-			glog.V(5).Infof("Docker event: %s, handled, looping aroubnd", event.Status)
+			glog.V(5).Infof("Docker event: %s, handled, looping around", event.Status)
 		}
 		glog.Errorf("Exitting the docker event loop")
 	}()

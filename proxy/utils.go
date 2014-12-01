@@ -20,7 +20,9 @@ import (
 	"syscall"
 	"strconv"
 	"net"
+	"fmt"
 
+	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
@@ -30,7 +32,7 @@ import (
 const SO_ORIGINAL_DST = 80
 
 func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (ProxyService, error) {
-	glog.Infof("Creating a new proxy store")
+	glog.Infof("Creating a new ProxyService")
 	proxy := new(ProxyStore)
 	proxy.Config = cfg
 
@@ -41,7 +43,6 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 
 	/* step: create a tcp listener for the proxy service */
 	glog.V(2).Infof("Binding proxy to interface: %s:%d", cfg.IPAddress, cfg.ProxyPort)
-	//tcp_addr := net.TCPAddr{net.ParseIP(cfg.IPAddress), cfg.ProxyPort, ""}
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.ProxyPort))
 	if err != nil {
 		glog.Errorf("Unable to bind proxy service, error: %s", err)
@@ -52,7 +53,7 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 	/* step: create the map for holder proxiers */
 	proxy.Proxies = make(map[ProxyID]ServiceProxy, 0)
 	/* step: create the shutdown channel */
-	proxy.ShutdownSignal = make(chan bool)
+	proxy.Shutdown = make(utils.ShutdownSignalChannel)
 
 	/* step: start finding services */
 	if err := store.FindServices(); err != nil {
@@ -61,10 +62,11 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 	return proxy, nil
 }
 
-func NewProxier(cfg *config.Configuration, si services.Service) (ServiceProxy, error) {
+func NewServiceProxy(cfg *config.Configuration, si services.Service) (ServiceProxy, error) {
+	glog.Infof("Creating a new proxier, service: %s", si )
+
 	proxier := new(Proxier)
-	proxier.ID = GetProxyIDByService(&si)
-	glog.Infof("Creating a new proxier, service: %s, proxyID: %s", si, proxier.ID)
+	proxier.Service = si
 	/* step: create a load balancer on the service */
 	balancer, err := NewLoadBalancer("rr")
 	if err != nil {
@@ -73,18 +75,22 @@ func NewProxier(cfg *config.Configuration, si services.Service) (ServiceProxy, e
 	}
 	proxier.Balancer = balancer
 	/* step: create a discovery agent on the proxier service */
-	discovery, err := endpoints.NewDiscoveryService(cfg, si)
+	endpoints, err := endpoints.NewEndpointsService(cfg, si)
 	if err != nil {
 		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", si, err)
 		return nil, err
 	}
 	/* step: synchronize the endpoints */
-	proxier.Discovery = discovery
-	if err = proxier.Discovery.Synchronize(); err != nil {
+	proxier.Endpoints = endpoints
+	if err = proxier.Endpoints.Synchronize(); err != nil {
 		glog.Errorf("Failed to synchronize the endpoints on proxier startup, error: %s", err)
 	}
 	/* step: start the discovery agent watcher */
-	proxier.Discovery.WatchEndpoints()
+	proxier.Endpoints.WatchEndpoints()
+
+	/* step: handle the events */
+	proxier.HandleEvents()
+
 	return proxier, nil
 }
 

@@ -24,6 +24,10 @@ import (
 
 type ProxyID string
 
+func (p *ProxyID) String() string {
+	return fmt.Sprintf("proxyId: %s", p )
+}
+
 func GetProxyIDByConnection(source, port string) ProxyID {
 	return ProxyID(fmt.Sprintf("%s:%s", source, port))
 }

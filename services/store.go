@@ -59,11 +59,11 @@ the implementation for the services store
  - a shutdown down signal
  */
 type ServiceStoreImpl struct {
-	Config    *config.Configuration
-	Channel   BackendServiceChannel
-	Providers map[string]ServiceProvider
-	Listeners []ServiceStoreChannel
-	Shutdown  utils.ShutdownSignalChannel
+	Config    		*config.Configuration
+	BackendChannel  BackendServiceChannel
+	Providers 		map[string]ServiceProvider
+	Listeners		[]ServiceStoreChannel
+	Shutdown  		utils.ShutdownSignalChannel
 }
 
 func (r *ServiceStoreImpl) AddServiceListener(channel ServiceStoreChannel) {
@@ -81,10 +81,11 @@ func (r *ServiceStoreImpl) AddServiceProvider(name string, provider ServiceProvi
 	return nil
 }
 
-func (r *ServiceStoreImpl) PushServiceEvent(service Service) {
+func (r *ServiceStoreImpl) PushServiceEvent(service ServiceEvent) {
 	for _, channel := range r.Listeners {
 		go func() {
 			channel <- service
+			glog.V(7).Infof("Pushed the service event: %s to listener: %V", service, channel )
 		}()
 	}
 }
@@ -97,31 +98,38 @@ func (r *ServiceStoreImpl) FindServices() error {
 	/* step: start the providers service stream */
 	for name, provider := range r.Providers {
 		glog.Infof("Starting the service stream from provider: %s", name)
-		if err := provider.StreamServices(r.Channel); err != nil {
+		if err := provider.StreamServices(r.BackendChannel); err != nil {
 			glog.Errorf("Unable to start provider: %s service stream, error: %s", name, err)
 		}
 	}
 	go func() {
-		var definition Definition
 		for {
-			switch {
-			case definition := <- r.Channel:
-				/* step: wait for a backend definition to be channeled from a provider */
-				definition := <-r.Channel
-				glog.V(5).Infof("We have recieved a definition request from a provider, definition: %s", definition)
+			select {
+			case <-r.Shutdown:
+				/* step: shutdown the service store */
+				glog.Infof("Shutting down the Services Store")
+
+			/* step: wait for a backend definition to be channeled from a provider */
+			case definition := <-r.BackendChannel:
+				glog.V(5).Infof("Recieved definition from provider, definition: %s", definition)
 				/* step: convert the definition into a service */
 				service, err := definition.GetService()
 				if err != nil {
 					glog.Errorf("The service definition is invalid, error: %s", err)
 					continue
 				}
-				glog.V(5).Infof("Sending the service on to event listeners (%d)", len(r.Listeners))
-				/* step: send the service to everyone that is listening */
-				r.PushServiceEvent(service)
-			case <- r.Shutdown:
-				/* step: shutdown the service store */
-				glog.Infof("Shutting down the ServicesStore")
-
+				var event ServiceEvent
+				event.Service = service
+				switch definition.Operation {
+				case SERVICE_ADDED:
+					event.Operation = SERVICE_REQUEST
+				case SERVICE_REMOVED:
+					event.Operation = SERVICE_CLOSED
+				default:
+					glog.Errorf("Unable definition operation: %d", definition.Operation )
+					continue;
+				}
+				r.PushServiceEvent(event)
 			}
 		}
 	}()

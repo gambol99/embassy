@@ -47,7 +47,7 @@ func (lb *LoadBalancerRR) SelectEndpoint(endpoints []endpoints.Endpoint) (endpoi
 	return endpoint, nil
 }
 
-func (lb *LoadBalancerRR) UpdateEndpoints(endpoints []services.Endpoint) {
+func (lb *LoadBalancerRR) UpdateEndpoints(endpoints []endpoints.Endpoint) {
 	glog.V(2).Infof("lb (rr) : updating the endpoints")
 	if len(endpoints) > 0 {
 		lb.NextEndpointIndex = 0

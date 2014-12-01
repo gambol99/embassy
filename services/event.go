@@ -28,7 +28,7 @@ const (
 type ServiceOperation int
 
 func (s ServiceOperation) String() string {
-	switch *s {
+	switch s {
 	case SERVICE_REQUEST:
 		return "SERVICE_REQUEST"
 	case SERVICE_CLOSED:

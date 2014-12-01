@@ -20,11 +20,11 @@ import (
 	"github.com/gambol99/embassy/services"
 )
 
-type DiscoveryStoreProvider interface {
+type EndpointsProvider interface {
 	/* get a list of the endpoints from the backend */
-	List(*services.Service) ([]services.Endpoint, error)
+	List(*services.Service) ([]Endpoint, error)
 	/* watch for changes on the backend */
-	Watch(*services.Service) (EndpointUpdateChannel,error)
+	Watch(*services.Service) (EndpointChangedChannel,error)
 	/* shutdown and clean up the provider */
 	Close()
 }
