@@ -35,13 +35,11 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 	glog.Infof("Creating a new ProxyService")
 	proxy := new(ProxyStore)
 	proxy.Config = cfg
-
-	/* step: create a channel to listen for new services from the store */
+    	/* step: create a channel to listen for new services from the store */
 	glog.V(4).Infof("Creating a services channel for the proxy")
 	proxy.ServicesChannel = make(services.ServiceStoreChannel,10)
 	store.AddServiceListener(proxy.ServicesChannel)
-
-	/* step: create a tcp listener for the proxy service */
+    	/* step: create a tcp listener for the proxy service */
 	glog.V(2).Infof("Binding proxy to interface: %s:%d", cfg.IPAddress, cfg.ProxyPort)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.ProxyPort))
 	if err != nil {
@@ -49,16 +47,12 @@ func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (Prox
 		return nil, err
 	}
 	proxy.Listener = listener
-
 	/* step: create the map for holder proxiers */
 	proxy.Proxies = make(map[ProxyID]ServiceProxy, 0)
 	/* step: create the shutdown channel */
 	proxy.Shutdown = make(utils.ShutdownSignalChannel)
-
 	/* step: start finding services */
-	if err := store.FindServices(); err != nil {
-		glog.Errorf("Failed to start the services stream, error: %s", err)
-	}
+	store.FindServices()
 	return proxy, nil
 }
 

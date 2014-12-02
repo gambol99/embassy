@@ -23,7 +23,6 @@ import (
 )
 
 func NewServiceStore(config *config.Configuration) ServiceStore {
-	/* step: has the backend been hardcoded on the command line, if so we use a fixed backend service */
 	return &ServiceStoreImpl{config,
 		make(BackendServiceChannel, 5),      	// channel to pass to providers
 		make(map[string]ServiceProvider, 0), 	// a map of providers

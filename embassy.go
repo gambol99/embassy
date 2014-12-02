@@ -17,6 +17,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/proxy"
@@ -33,10 +34,12 @@ func main() {
 
 	/* step: create a backend service provider */
 	store := LoadServicesStore(configuration)
-	glog.Infof("Starting the Embassy Proxy Service, local ip: %s, hostname: %s", configuration.IPAddress, configuration.HostName)
+
+	glog.Infof("Starting the Embassy Proxy Service, local ip: %s, hostname: %s",
+		configuration.IPAddress, configuration.HostName)
 
 	/* step: create the proxy service */
-	proxy_store, err := proxy.NewProxyStore(configuration, store)
+	service, err := proxy.NewProxyStore(configuration, store)
 	if err != nil {
 		glog.Errorf("Failed to create the proxy service, error: %s", err)
 		return
@@ -45,14 +48,14 @@ func main() {
 	/* kick of the proxy and wait */
 	done := make(chan bool)
 	go func() {
-		if err := proxy_store.Start(); err != nil {
+		if err := service.Start(); err != nil {
 			glog.Errorf("Failed to start the proxy service, error: %s", err)
 			return
 		}
 		done <- true
 	}()
 	var finished = <-done
-	glog.Infof("Exitting the proxy service: %s", finished)
+	glog.Infof("Exitting the proxy service: %s", finished )
 }
 
 func ParseOptions() *config.Configuration {
@@ -76,6 +79,7 @@ func LoadServicesStore(cfg *config.Configuration) services.ServiceStore {
 
 func Assert(err error, message string) {
 	if err != nil {
-		glog.Fatalf("%s, error: %s", message, err)
+		glog.Errorf("%s, error: %s", message, err)
+		os.Exit(1)
 	}
 }

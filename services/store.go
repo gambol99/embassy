@@ -83,10 +83,10 @@ func (r *ServiceStoreImpl) AddServiceProvider(name string, provider ServiceProvi
 
 func (r *ServiceStoreImpl) PushServiceEvent(service ServiceEvent) {
 	for _, channel := range r.Listeners {
-		go func() {
-			channel <- service
-			glog.V(12).Infof("Pushed the service event: %s to listener: %V", service, channel )
-		}()
+		go func(ch ServiceStoreChannel) {
+			ch <- service
+			glog.V(12).Infof("Pushed the service event: %s to listener: %V", service, ch )
+		}(channel)
 	}
 }
 
@@ -109,27 +109,26 @@ func (r *ServiceStoreImpl) FindServices() error {
 				/* step: shutdown the service store */
 				glog.Infof("Shutting down the Services Store")
 
-			/* step: wait for a backend definition to be channeled from a provider */
+				/* step: wait for a backend definition to be channeled from a provider */
 			case definition := <-r.BackendChannel:
 				glog.V(5).Infof("Recieved definition from provider, definition: %s", definition)
-				/* step: convert the definition into a service */
-				service, err := definition.GetService()
-				if err != nil {
+				// step: convert the definition into a service
+				if service, err := definition.GetService(); err != nil {
 					glog.Errorf("The service definition is invalid, error: %s", err)
-					continue
+				} else {
+					var event ServiceEvent
+					event.Service = service
+					switch definition.Operation {
+					case DEFINITION_SERVICE_ADDED:
+						event.Operation = SERVICE_REQUEST
+					case DEFINITION_SERVICE_REMOVED:
+						event.Operation = SERVICE_CLOSED
+					default:
+						glog.Errorf("Unable definition operation: %d", definition.Operation)
+						continue;
+					}
+					r.PushServiceEvent(event)
 				}
-				var event ServiceEvent
-				event.Service = service
-				switch definition.Operation {
-				case DEFINITION_SERVICE_ADDED:
-					event.Operation = SERVICE_REQUEST
-				case DEFINITION_SERVICE_REMOVED:
-					event.Operation = SERVICE_CLOSED
-				default:
-					glog.Errorf("Unable definition operation: %d", definition.Operation )
-					continue;
-				}
-				r.PushServiceEvent(event)
 			}
 		}
 	}()

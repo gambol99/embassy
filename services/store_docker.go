@@ -18,7 +18,6 @@ package services
 
 import (
 	"errors"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -36,12 +35,10 @@ const (
 	DOCKER_CONTAINER_PREFIX = "container:"
 )
 
-type DockerEventsChannel chan *docker.APIEvents
-
 type DockerServiceStore struct {
 	/* docker api client */
 	Docker *docker.Client
-	/* the service configuraton */
+	/* the service configuration */
 	Config *config.Configuration
 	/* map of container id to definition */
 	ServiceMap
@@ -53,9 +50,7 @@ type ServiceMap struct {
 }
 
 func (r *ServiceMap) Add(containerID string, definitions []DefinitionEvent) {
-	glog.Infof("LOCKING")
 	r.Lock()
-	glog.Infof("LOCKED")
 	if r.Services == nil {
 		r.Services = make(map[string][]DefinitionEvent)
 	}
@@ -64,17 +59,13 @@ func (r *ServiceMap) Add(containerID string, definitions []DefinitionEvent) {
 }
 
 func (r *ServiceMap) Remove(containerID string) {
-	glog.Infof("LOCKING")
 	r.Lock()
-	glog.Infof("LOCKED")
 	defer r.Unlock()
 	delete(r.Services, containerID )
 }
 
 func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent,bool) {
-	glog.Infof("LOCKING")
 	r.RLock()
-	glog.Infof("LOCKED")
 	defer r.RUnlock()
 	if definitions, found := r.Services[containerId]; found {
 		return definitions, true
@@ -85,10 +76,7 @@ func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent,bool) {
 func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
 	/* step: we create a docker client */
 	glog.V(3).Infof("Creating docker client api, socket: %s", cfg.DockerSocket)
-	/* step: validate the socket */
-	if err := ValidateDockerSocket(cfg.DockerSocket); err != nil {
-		return nil, err
-	}
+
 	/* step: create a docker client */
 	client, err := docker.NewClient(cfg.DockerSocket)
 	if err != nil {
@@ -103,14 +91,12 @@ func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
 
 func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error {
 	glog.V(6).Infof("Starting the docker backend service discovery stream" )
-	/* step: create a goroutine to listen to the events */
-	go func() {
-		/* step: before we stream the services take the time to lookup for containers already running and find the links */
-		r.LookupRunningContainers(channel)
+	/* step: before we stream the services take the time to lookup for containers already running and find the links */
+	r.LookupRunningContainers(channel)
 
-		/* channel to recieve events */
-		dockerEvents := make(chan *docker.APIEvents)
-		glog.V(6).Infof("Adding the docker event listen to our channel")
+	go func() {
+		/* channel to receive events */
+		dockerEvents := make(chan *docker.APIEvents,10)
 		/* step: add our channel as an event listener for docker events */
 		if err := r.Docker.AddEventListener(dockerEvents); err != nil {
 			glog.Errorf("Unable to register docker events listener, error: %s", err)
@@ -121,18 +107,30 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 		for {
 			select {
 			case event := <-dockerEvents:
-				glog.V(2).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
-				switch event.Status {
-				case DOCKER_START:
+				glog.V(4).Infof("Received docker event status: %s, id: %s", event.Status, event.ID )
+				if event.Status == DOCKER_START {
 					go r.ProcessDockerCreation(event.ID,channel)
-				case DOCKER_DESTROY:
-					go r.ProcessDockerDestroy(event.ID,channel)
+				} else if event.Status == DOCKER_DESTROY {
+					go r.ProcessDockerDestroy(event.ID, channel)
 				}
-				glog.V(5).Infof("Docker event: %s, handled, looping around", event.Status)
 			}
 		}
-		glog.Errorf("Exitting the docker event loop")
+		glog.Errorf("Exitting the docker services stream" )
 	}()
+	return nil
+}
+
+func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChannel) error {
+	glog.Infof("Looking for any container already running and checking for services")
+	if containers, err := r.Docker.ListContainers(docker.ListContainersOptions{}); err == nil {
+		/* step: iterate the containers and look for services */
+		for _, container := range containers {
+			go r.ProcessDockerCreation(container.ID,channel)
+		}
+	} else {
+		glog.Errorf("Failed to list the currently running container, error: %s", err)
+		return err
+	}
 	return nil
 }
 
@@ -171,20 +169,6 @@ func (r *DockerServiceStore) PushServices(channel BackendServiceChannel, definit
 		definition.Operation = operation
 		channel <- definition
 	}
-}
-
-func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChannel) error {
-	glog.Infof("Looking for any container already running and checking for services")
-	if containers, err := r.Docker.ListContainers(docker.ListContainersOptions{}); err == nil {
-		/* step: iterate the containers and look for services */
-		for _, container := range containers {
-			go r.ProcessDockerCreation(container.ID,channel)
-		}
-	} else {
-		glog.Errorf("Failed to list the currently running container, error: %s", err)
-		return err
-	}
-	return nil
 }
 
 func (r *DockerServiceStore) GetContainer(containerID string) (container *docker.Container, err error) {
@@ -270,24 +254,6 @@ func (r DockerServiceStore) GetContainerIPAddress(container *docker.Container) (
 func (r DockerServiceStore) IsBackendService(key, value string) (found bool) {
 	found, _ = regexp.MatchString(r.Config.BackendPrefix, key)
 	return
-}
-
-func ValidateDockerSocket(socket string) error {
-	glog.V(5).Infof("Validating the docker socket: %s", socket)
-	if match, _ := regexp.MatchString("^unix://", socket); !match {
-		glog.Errorf("The docker socket: %s should start with unix://", socket)
-		return errors.New("Invalid docker socket")
-	}
-	filename := strings.TrimPrefix(socket, "unix:/")
-	glog.V(5).Infof("Looking for docker socket: %s", filename)
-	if filestat, err := os.Stat(filename); err != nil {
-		glog.Errorf("The docker socket: %s does not exists", socket)
-		return errors.New("The docker socket does not exist")
-	} else if filestat.Mode() == os.ModeSocket {
-		glog.Errorf("The docker socket: %s is not a unix socket, please check", socket)
-		return errors.New("The docker socket is not a named unix socket")
-	}
-	return nil
 }
 
 /*
