@@ -43,8 +43,6 @@ type DockerServiceStore struct {
 	Docker *docker.Client
 	/* the service configuraton */
 	Config *config.Configuration
-	/* the docker events channel */
-	Events DockerEventsChannel
 	/* map of container id to definition */
 	ServiceMap
 }
@@ -100,31 +98,38 @@ func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
 	docker_store := new(DockerServiceStore)
 	docker_store.Docker = client
 	docker_store.Config = cfg
-	docker_store.Events = make(DockerEventsChannel,10)
 	return docker_store, nil
 }
 
 func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error {
-	glog.V(6).Infof("Starting the docker backend service discovery stream")
-	if err := r.AddDockerEventListener(); err != nil {
-		glog.Errorf("Unable to add our docker client as an event listener, error:", err)
-		return err
-	}
+	glog.V(6).Infof("Starting the docker backend service discovery stream" )
 	/* step: create a goroutine to listen to the events */
 	go func() {
-		glog.V(5).Infof("Entering into the docker events loop")
 		/* step: before we stream the services take the time to lookup for containers already running and find the links */
 		r.LookupRunningContainers(channel)
+
+		/* channel to recieve events */
+		dockerEvents := make(chan *docker.APIEvents)
+		glog.V(6).Infof("Adding the docker event listen to our channel")
+		/* step: add our channel as an event listener for docker events */
+		if err := r.Docker.AddEventListener(dockerEvents); err != nil {
+			glog.Errorf("Unable to register docker events listener, error: %s", err)
+			return
+		}
 		/* step: start the event loop and wait for docker events */
-		for event := range r.Events {
-			glog.V(2).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
-			switch event.Status {
-			case DOCKER_START:
-				//go r.ProcessDockerCreation(event.ID,channel)
-			case DOCKER_DESTROY:
-				//go r.ProcessDockerDestroy(event.ID,channel)
+		glog.V(5).Infof("Entering into the docker events loop")
+		for {
+			select {
+			case event := <-dockerEvents:
+				glog.V(2).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
+				switch event.Status {
+				case DOCKER_START:
+					go r.ProcessDockerCreation(event.ID,channel)
+				case DOCKER_DESTROY:
+					go r.ProcessDockerDestroy(event.ID,channel)
+				}
+				glog.V(5).Infof("Docker event: %s, handled, looping around", event.Status)
 			}
-			glog.V(5).Infof("Docker event: %s, handled, looping around", event.Status)
 		}
 		glog.Errorf("Exitting the docker event loop")
 	}()
@@ -173,8 +178,7 @@ func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChann
 	if containers, err := r.Docker.ListContainers(docker.ListContainersOptions{}); err == nil {
 		/* step: iterate the containers and look for services */
 		for _, container := range containers {
-			//go r.ProcessDockerCreation(container.ID,channel)
-			var _ = container
+			go r.ProcessDockerCreation(container.ID,channel)
 		}
 	} else {
 		glog.Errorf("Failed to list the currently running container, error: %s", err)
@@ -225,17 +229,6 @@ func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Def
 		}
 	}
 	return definitions, nil
-}
-
-func (r *DockerServiceStore) AddDockerEventListener() (err error) {
-	glog.V(5).Infof("Adding the docker event listen to our channel")
-	/* step: add our channel as an event listener for docker events */
-	if err = r.Docker.AddEventListener(r.Events); err != nil {
-		glog.Errorf("Unable to register docker events listener, error: %s", err)
-		return
-	}
-	glog.V(5).Infof("Successfully added the docker event handler")
-	return
 }
 
 /*
