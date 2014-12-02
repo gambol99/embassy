@@ -18,37 +18,52 @@ package services
 
 import (
 	"errors"
+
+	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/config"
 	"github.com/golang/glog"
 )
 
-type ServiceStoreChannel chan Service
-type BackendServiceChannel chan Definition
-
 type ServiceStore interface {
-	ShutdownStore() error
+	Close()
 	FindServices() error
 	AddServiceListener(ServiceStoreChannel)
 	AddServiceProvider(name string, provider ServiceProvider) error
 }
 
+/*
+the channel is used by the service store to send service requests and removal
+from over to the proxy service
+ */
+type ServiceStoreChannel chan ServiceEvent
+
+/*
+the channel is used to send events from the backends to the service store and
+then upstream to the proxy service
+ */
+type BackendServiceChannel chan DefinitionEvent
+/*
+The service provider reads in service request from the containers and push them
+up stream to the ServiceStore
+ */
 type ServiceProvider interface {
 	StreamServices(BackendServiceChannel) error
 }
 
+/*
+the implementation for the services store
+ - the service configuration
+ - a channel for providers to send request
+ - a list of providers
+ - a collection of people listening to events
+ - a shutdown down signal
+ */
 type ServiceStoreImpl struct {
-	Config    *config.Configuration
-	Channel   BackendServiceChannel
-	Providers map[string]ServiceProvider
-	Listeners []ServiceStoreChannel
-}
-
-func NewServiceStore(config *config.Configuration) ServiceStore {
-	/* step: has the backend been hardcoded on the command line, if so we use a fixed backend service */
-	return &ServiceStoreImpl{config,
-		make(BackendServiceChannel, 5),      // channel to pass to providers
-		make(map[string]ServiceProvider, 0), // a map of providers
-		make([]ServiceStoreChannel, 0)}      // a list of people listening for service updates
+	Config    		*config.Configuration
+	BackendChannel  BackendServiceChannel
+	Providers 		map[string]ServiceProvider
+	Listeners		[]ServiceStoreChannel
+	Shutdown  		utils.ShutdownSignalChannel
 }
 
 func (r *ServiceStoreImpl) AddServiceListener(channel ServiceStoreChannel) {
@@ -66,6 +81,15 @@ func (r *ServiceStoreImpl) AddServiceProvider(name string, provider ServiceProvi
 	return nil
 }
 
+func (r *ServiceStoreImpl) PushServiceEvent(service ServiceEvent) {
+	for _, channel := range r.Listeners {
+		go func(ch ServiceStoreChannel) {
+			ch <- service
+			glog.V(12).Infof("Pushed the service event: %s to listener: %V", service, ch )
+		}(channel)
+	}
+}
+
 func (r *ServiceStoreImpl) FindServices() error {
 	if len(r.Providers) <= 0 {
 		return errors.New("You have not registered any providers")
@@ -74,34 +98,47 @@ func (r *ServiceStoreImpl) FindServices() error {
 	/* step: start the providers service stream */
 	for name, provider := range r.Providers {
 		glog.Infof("Starting the service stream from provider: %s", name)
-		if err := provider.StreamServices(r.Channel); err != nil {
+		if err := provider.StreamServices(r.BackendChannel); err != nil {
 			glog.Errorf("Unable to start provider: %s service stream, error: %s", name, err)
 		}
 	}
 	go func() {
 		for {
-			/* step: wait for a backend definition to be channeled from a provider */
-			definition := <-r.Channel
-			glog.V(5).Infof("We have recieved a definition request from a provider, definition: %s", definition)
-			/* step: convert the definition into a service */
-			service, err := definition.GetService()
-			if err != nil {
-				glog.Errorf("The service definition is invalid, error: %s", err)
-				continue
-			}
-			glog.V(5).Infof("Sending the service on to event listeners (%d)", len(r.Listeners))
-			/* step: send the service to everyone that is listening */
-			for _, channel := range r.Listeners {
-				go func(c ServiceStoreChannel) {
-					channel <- service
-					glog.V(4).Infof("Sent the service to listener")
-				}(channel)
+			select {
+			case <-r.Shutdown:
+				/* step: shutdown the service store */
+				glog.Infof("Shutting down the Services Store")
+
+				/* step: wait for a backend definition to be channeled from a provider */
+			case definition := <-r.BackendChannel:
+				glog.V(5).Infof("Recieved definition from provider, definition: %s", definition)
+				// step: convert the definition into a service
+				if service, err := definition.GetService(); err != nil {
+					glog.Errorf("The service definition is invalid, error: %s", err)
+				} else {
+					var event ServiceEvent
+					event.Service = service
+					switch definition.Operation {
+					case DEFINITION_SERVICE_ADDED:
+						event.Operation = SERVICE_REQUEST
+					case DEFINITION_SERVICE_REMOVED:
+						event.Operation = SERVICE_CLOSED
+					default:
+						glog.Errorf("Unable definition operation: %d", definition.Operation)
+						continue;
+					}
+					r.PushServiceEvent(event)
+				}
 			}
 		}
 	}()
 	return nil
 }
 
-func (r *ServiceStoreImpl) ShutdownStore() error {
-	return nil
+/*
+Creates a signal to shutdown any resources the ServiceStore is holding
+ */
+func (r *ServiceStoreImpl) Close()  {
+	glog.Infof("Attempting to shutdown the Services Store")
+	r.Shutdown <- true
 }

@@ -14,24 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package proxy
+package endpoints
 
 import (
-	"fmt"
-
 	"github.com/gambol99/embassy/services"
 )
 
-type ProxyID string
-
-func (p *ProxyID) String() string {
-	return fmt.Sprintf("proxyId: %s", *p )
-}
-
-func GetProxyIDByConnection(source, port string) ProxyID {
-	return ProxyID(fmt.Sprintf("%s:%s", source, port))
-}
-
-func GetProxyIDByService(si *services.Service) ProxyID {
-	return ProxyID(fmt.Sprintf("%s:%d", si.SourceIP, si.Port))
+type EndpointsProvider interface {
+	/* get a list of the endpoints from the backend */
+	List(*services.Service) ([]Endpoint, error)
+	/* watch for changes on the backend */
+	Watch(*services.Service) (EndpointChangedChannel,error)
+	/* shutdown and clean up the provider */
+	Close()
 }

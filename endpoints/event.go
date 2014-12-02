@@ -14,20 +14,39 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package endpoints
 
-import "github.com/golang/glog"
+import (
+	"fmt"
 
-type FixedBackendStore struct {
-	Definition Definition
+	"github.com/gambol99/embassy/services"
+)
+
+type EndPointChangeAction int
+
+const (
+	CHANGED = 1 << iota
+	DELETED
+)
+
+type EndpointChangedEvent struct {
+	Path 	 string
+	Event 	 EndPointChangeAction
 }
 
-func NewFixedServiceStore(definition string) ServiceProvider {
-	glog.Infof("Creating a new fixed backend service, definition: %s", definition)
-	return &FixedBackendStore{Definition{"127.0.0.1", "Fixed", definition}}
+func (r EndpointChangedEvent) String() string {
+	return fmt.Sprintf("event: [%s] %s", r.Path, r.Event )
 }
 
-func (r *FixedBackendStore) StreamServices(channel BackendServiceChannel) error {
-	channel <- r.Definition
-	return nil
+/*
+The event which is sent to the listeners
+ */
+type EndpointEvent struct {
+	Event    EndPointChangeAction
+	Service  services.Service
 }
+
+func (r EndpointEvent) String() string {
+	return fmt.Sprintf("action: %s, service: %s", r.Event, r.Service )
+}
+

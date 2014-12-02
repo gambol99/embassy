@@ -18,9 +18,9 @@ package services
 
 import (
 	"errors"
-	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gambol99/embassy/config"
@@ -35,87 +35,97 @@ const (
 	DOCKER_CONTAINER_PREFIX = "container:"
 )
 
-type DockerEventsChannel chan *docker.APIEvents
-
 type DockerServiceStore struct {
-	Docker *docker.Client /* docker api client */
+	/* docker api client */
+	Docker *docker.Client
+	/* the service configuration */
 	Config *config.Configuration
-	Events DockerEventsChannel /* docker events channel */
+	/* map of container id to definition */
+	ServiceMap
+}
+
+type ServiceMap struct {
+	sync.RWMutex
+	Services map[string][]DefinitionEvent
+}
+
+func (r *ServiceMap) Add(containerID string, definitions []DefinitionEvent) {
+	r.Lock()
+	if r.Services == nil {
+		r.Services = make(map[string][]DefinitionEvent)
+	}
+	defer r.Unlock()
+	r.Services[containerID] = definitions
+}
+
+func (r *ServiceMap) Remove(containerID string) {
+	r.Lock()
+	defer r.Unlock()
+	delete(r.Services, containerID )
+}
+
+func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent,bool) {
+	r.RLock()
+	defer r.RUnlock()
+	if definitions, found := r.Services[containerId]; found {
+		return definitions, true
+	}
+	return nil, false
 }
 
 func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
 	/* step: we create a docker client */
 	glog.V(3).Infof("Creating docker client api, socket: %s", cfg.DockerSocket)
-	/* step: validate the socket */
-	if err := ValidateDockerSocket(cfg.DockerSocket); err != nil {
-		return nil, err
-	}
+
 	/* step: create a docker client */
 	client, err := docker.NewClient(cfg.DockerSocket)
 	if err != nil {
 		glog.Errorf("Unable to create a docker client, error: %s", err)
 		return nil, err
 	}
-	return &DockerServiceStore{client, cfg, make(DockerEventsChannel)}, nil
+	docker_store := new(DockerServiceStore)
+	docker_store.Docker = client
+	docker_store.Config = cfg
+	return docker_store, nil
 }
 
 func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error {
-	glog.V(6).Infof("Starting the docker backend service discovery stream")
-	if err := r.AddDockerEventListener(); err != nil {
-		glog.Errorf("Unable to add our docker client as an event listener, error:", err)
-		return err
-	}
+	glog.V(6).Infof("Starting the docker backend service discovery stream" )
+	/* step: before we stream the services take the time to lookup for containers already running and find the links */
+	r.LookupRunningContainers(channel)
 
-	/* step: create a goroutine to listen to the events */
 	go func() {
-		glog.V(5).Infof("Entering into the docker events loop")
-		/* step: before we stream the services take the time to lookup for containers already running and find the links */
-		r.LookupRunningContainers(channel)
-		/* step: start the event loop and wait for docker events */
-		for event := range r.Events {
-			glog.V(2).Infof("Received docker event: %s, container: %s", event.Status, event.ID[:12])
-			switch event.Status {
-			case DOCKER_START:
-				go func(e *docker.APIEvents) {
-					services, err := r.InspectContainerServices(event.ID)
-					if err != nil {
-						glog.Errorf("Unable to inspect container: %s for services, error: %s", event.ID[:12], err)
-						return
-					}
-					if len(services) <= 0 {
-						glog.V(2).Infof("No service request found in container: %s", event.ID[:12])
-						return
-					}
-					for _, service := range services {
-						r.PushService(channel, service, event.ID[:12])
-					}
-				}(event)
-			}
-			glog.V(5).Infof("Docker event: %s, handled, looping aroubnd", event.Status)
+		/* channel to receive events */
+		dockerEvents := make(chan *docker.APIEvents,10)
+		/* step: add our channel as an event listener for docker events */
+		if err := r.Docker.AddEventListener(dockerEvents); err != nil {
+			glog.Errorf("Unable to register docker events listener, error: %s", err)
+			return
 		}
-		glog.Errorf("Exitting the docker event loop")
+		/* step: start the event loop and wait for docker events */
+		glog.V(5).Infof("Entering into the docker events loop")
+		for {
+			select {
+			case event := <-dockerEvents:
+				glog.V(4).Infof("Received docker event status: %s, id: %s", event.Status, event.ID )
+				if event.Status == DOCKER_START {
+					go r.ProcessDockerCreation(event.ID,channel)
+				} else if event.Status == DOCKER_DESTROY {
+					go r.ProcessDockerDestroy(event.ID, channel)
+				}
+			}
+		}
+		glog.Errorf("Exitting the docker services stream" )
 	}()
 	return nil
-}
-
-func (r *DockerServiceStore) PushService(channel BackendServiceChannel, definition Definition, containerId string) {
-	glog.V(2).Infof("Pushing service: %s, container: %s ", definition, containerId)
-	channel <- definition
 }
 
 func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChannel) error {
 	glog.Infof("Looking for any container already running and checking for services")
 	if containers, err := r.Docker.ListContainers(docker.ListContainersOptions{}); err == nil {
 		/* step: iterate the containers and look for services */
-		for _, containerID := range containers {
-			services, err := r.InspectContainerServices(containerID.ID)
-			if err != nil {
-				glog.Errorf("Unable to inspect container: %s for services, error: %s", containerID.ID[:12], err)
-				continue
-			}
-			for _, service := range services {
-				r.PushService(channel, service, containerID.ID[:12])
-			}
+		for _, container := range containers {
+			go r.ProcessDockerCreation(container.ID,channel)
 		}
 	} else {
 		glog.Errorf("Failed to list the currently running container, error: %s", err)
@@ -124,14 +134,51 @@ func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChann
 	return nil
 }
 
+func (r *DockerServiceStore) ProcessDockerCreation(containerID string, channel BackendServiceChannel) error {
+	/* step: inspect the service of the container */
+	definitions, err := r.InspectContainerServices(containerID)
+	if err != nil {
+		glog.Errorf("Unable to inspect container: %s for services, error: %s", containerID[:12], err)
+		return err
+	}
+	glog.V(4).Infof("Container: %s, services found: %d", containerID[:12], len(definitions) )
+	/* step: add the container to the service map */
+	r.Add(containerID, definitions )
+	/* step: push the service */
+	r.PushServices(channel, definitions, DEFINITION_SERVICE_ADDED )
+	glog.V(4).Infof("Successfully added services from container: %s", containerID[:12])
+	return nil
+}
+
+func (r *DockerServiceStore) ProcessDockerDestroy(containerID string, channel BackendServiceChannel) error {
+	glog.V(4).Infof("Docker destruction event, container: %s", containerID[:12] )
+	if definitions, found := r.Has(containerID); found {
+		glog.V(4).Infof("Found %s definitions for container: %s", len(definitions), containerID[:12])
+		r.PushServices(channel, definitions, DEFINITION_SERVICE_REMOVED)
+		r.Remove(containerID)
+		glog.V(4).Infof("Successfully removed services from container: %s", containerID[:12])
+	} else {
+		glog.V(4).Infof("Failed to find any defintitions from container: %s", containerID[:12] )
+	}
+	return nil
+}
+
+func (r *DockerServiceStore) PushServices(channel BackendServiceChannel, definitions []DefinitionEvent, operation DefinitionOperation) {
+	for _, definition := range definitions {
+		glog.V(3).Infof("Pushing service: %s to services store", definition )
+		definition.Operation = operation
+		channel <- definition
+	}
+}
+
 func (r *DockerServiceStore) GetContainer(containerID string) (container *docker.Container, err error) {
 	glog.V(5).Infof("Grabbing the container: %s from docker api", containerID)
 	container, err = r.Docker.InspectContainer(containerID)
 	return
 }
 
-func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Definition, error) {
-	definitions := make([]Definition, 0)
+func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]DefinitionEvent, error) {
+	definitions := make([]DefinitionEvent, 0)
 	/* step: get the container config */
 	container, err := r.GetContainer(containerID)
 	if err != nil {
@@ -158,7 +205,7 @@ func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Def
 		if r.IsBackendService(key, value) {
 			glog.V(2).Infof("Found backend request in container: %s, service: %s", containerID, value)
 			/* step: create a backend definition and append to list */
-			var definition Definition
+			var definition DefinitionEvent
 			definition.Name = key
 			definition.SourceAddress = source_address
 			definition.Definition = value
@@ -166,17 +213,6 @@ func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Def
 		}
 	}
 	return definitions, nil
-}
-
-func (r *DockerServiceStore) AddDockerEventListener() (err error) {
-	glog.V(5).Infof("Adding the docker event listen to our channel")
-	/* step: add our channel as an event listener for docker events */
-	if err = r.Docker.AddEventListener(r.Events); err != nil {
-		glog.Errorf("Unable to register docker events listener, error: %s", err)
-		return
-	}
-	glog.V(5).Infof("Successfully added the docker event handler")
-	return
 }
 
 /*
@@ -218,24 +254,6 @@ func (r DockerServiceStore) GetContainerIPAddress(container *docker.Container) (
 func (r DockerServiceStore) IsBackendService(key, value string) (found bool) {
 	found, _ = regexp.MatchString(r.Config.BackendPrefix, key)
 	return
-}
-
-func ValidateDockerSocket(socket string) error {
-	glog.V(5).Infof("Validating the docker socket: %s", socket)
-	if match, _ := regexp.MatchString("^unix://", socket); !match {
-		glog.Errorf("The docker socket: %s should start with unix://", socket)
-		return errors.New("Invalid docker socket")
-	}
-	filename := strings.TrimPrefix(socket, "unix:/")
-	glog.V(5).Infof("Looking for docker socket: %s", filename)
-	if filestat, err := os.Stat(filename); err != nil {
-		glog.Errorf("The docker socket: %s does not exists", socket)
-		return errors.New("The docker socket does not exist")
-	} else if filestat.Mode() == os.ModeSocket {
-		glog.Errorf("The docker socket: %s is not a unix socket, please check", socket)
-		return errors.New("The docker socket is not a named unix socket")
-	}
-	return nil
 }
 
 /*

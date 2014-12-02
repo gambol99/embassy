@@ -30,6 +30,8 @@ const (
 	PROXY_INTERFACE = "eth0"
 )
 
+type ShutdownSignalChannel chan bool
+
 func GetLocalIPAddress(interface_name string) (string, error) {
 	glog.V(5).Infof("Attempting to grab the ipaddress of interface: %s", interface_name)
 	if interface_name == "" {

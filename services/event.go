@@ -14,24 +14,37 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package proxy
+package services
 
 import (
 	"fmt"
-
-	"github.com/gambol99/embassy/services"
 )
 
-type ProxyID string
+const (
+	SERVICE_REQUEST	= 1 << iota
+	SERVICE_CLOSED
+)
 
-func (p *ProxyID) String() string {
-	return fmt.Sprintf("proxyId: %s", *p )
+type ServiceOperation int
+
+func (s ServiceOperation) String() string {
+	switch s {
+	case SERVICE_REQUEST:
+		return "SERVICE_REQUEST"
+	case SERVICE_CLOSED:
+		return "SERVICE_CLOSED"
+	default:
+		return "UNKNOWN"
+	}
 }
 
-func GetProxyIDByConnection(source, port string) ProxyID {
-	return ProxyID(fmt.Sprintf("%s:%s", source, port))
+type ServiceEvent struct {
+	/* the operation type - adding or removing a service */
+	Operation ServiceOperation
+	/* the service definition */
+	Service Service
 }
 
-func GetProxyIDByService(si *services.Service) ProxyID {
-	return ProxyID(fmt.Sprintf("%s:%d", si.SourceIP, si.Port))
+func (s ServiceEvent) String() string {
+	return fmt.Sprintf("action: %s, service: %s", s.Operation, s.Service )
 }

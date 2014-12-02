@@ -44,14 +44,12 @@ func init() {
 	cfg_socket = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
 	cfg_discovery = flag.String("discovery", DEFAULT_DISCOVERY_URI, "the discovery backend to pull the services from")
 	cfg_iface = flag.String("interface", DEFAULT_INTERFACE, "the interface to take the proxy address from")
-	cfg_fixed_backend = flag.String("backend", DEFAULT_FIXED_BACKEND, "allow you specifiy a fixed backend service")
 	cfg_proxy_port = flag.Int("port", DEFAULT_PROXY_PORT, "the tcp port which the proxy should listen on")
 }
 
 type Configuration struct {
 	DockerSocket  string
 	DiscoveryURI  string
-	FixedBackend  string
 	BackendPrefix string
 	ProxyPort     int
 	IPAddress     string
@@ -80,7 +78,6 @@ func NewConfiguration() *Configuration {
 	configuration.BackendPrefix = DEFAULT_SERVICE_PREFIX
 	configuration.ProxyPort = *cfg_proxy_port
 	configuration.Interface = *cfg_iface
-	configuration.FixedBackend = *cfg_fixed_backend
 	hostname, err := utils.GetHostname()
 	if err != nil {
 		glog.Errorf("Unable to get the hostname of the box, error: %s", err)

@@ -17,17 +17,17 @@ limitations under the License.
 package services
 
 import (
-	"errors"
-
+	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/config"
 	"github.com/golang/glog"
 )
 
-func AddFixedServiceStore(store ServiceStore, definition string) error {
-	//fixedStore := NewFixedServiceStore(definition)
-	return errors.New("The fixed backend store is not yet fully supported")
-	//store.AddServiceProvider("fixed", fixedStore)
-	//return nil
+func NewServiceStore(config *config.Configuration) ServiceStore {
+	return &ServiceStoreImpl{config,
+		make(BackendServiceChannel, 5),      	// channel to pass to providers
+		make(map[string]ServiceProvider, 0), 	// a map of providers
+		make([]ServiceStoreChannel, 0),			// a list of people listening for service updates
+		make(utils.ShutdownSignalChannel)}
 }
 
 func AddDockerServiceStore(store ServiceStore, cfg *config.Configuration) error {
