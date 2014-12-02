@@ -18,20 +18,21 @@ package proxy
 
 import (
 	"fmt"
-
-	"github.com/gambol99/embassy/services"
 )
 
-type ProxyID string
-
-func (p *ProxyID) String() string {
-	return fmt.Sprintf("proxyId: %s", *p )
+/*
+Proxy Configuration
+*/
+type Configuration struct {
+	/* the port the proxy is listening on */
+	ProxyPort int
+	/* the discovery uri i.e. etcd://localhost:4001 or consul://localhost:5000 etc */
+	DiscoveryURI string
+	/* the interface we bind to */
+	Interface string
 }
 
-func GetProxyIDByConnection(source, port string) ProxyID {
-	return ProxyID(fmt.Sprintf("%s:%s", source, port))
-}
-
-func GetProxyIDByService(si *services.Service) ProxyID {
-	return ProxyID(fmt.Sprintf("%s:%d", si.SourceIP, si.Port))
+func (r Configuration) String() string {
+	return fmt.Sprintf("configuration: interface: %s, port: %d, discovery: %s",
+		r.Interface, r.ProxyPort, r.DiscoveryURI )
 }

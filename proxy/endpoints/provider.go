@@ -16,4 +16,15 @@ limitations under the License.
 
 package endpoints
 
-type Endpoint string
+import (
+	"github.com/gambol99/embassy/proxy/services"
+)
+
+type EndpointsProvider interface {
+	/* get a list of the endpoints from the backend */
+	List(*services.Service) ([]Endpoint, error)
+	/* watch for changes on the backend */
+	Watch(*services.Service) (EndpointEventChannel,error)
+	/* shutdown and clean up the provider */
+	Close()
+}

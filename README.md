@@ -31,7 +31,7 @@ When the docker boot is will create a iptables entry for DNAT all traffic from 1
 
 - Now you want your frontend box to be connected with with app1
 
-        # docker run -d -P BACKEND_APP1="/services/prod/app1/80[prod,app1];80/tcp" app1
+        # docker run -d -P BACKEND_APP1="/services/prod/app1/80;80" app1
         # curl 172.17.42.1
 
 **Embassy will**;
@@ -56,9 +56,9 @@ Alternative are run the proxy inside a container, link the other containers and 
 
 Note: mutiple services are simple added by placing additional environment variables
 
-      -e BACKEND_APP1="/services/prod/app1/80[prod,app1];80/tcp" \
-      -e BACKEND_DB_SLAVES="/services/prod/db/slaves/3306;3306/tcp" \
-      -e BACKEND_DB_MASTER="/services/prod/db/master/3306;3306/tcp"
+      -e BACKEND_APP1="/services/prod/app1/80[prod,app1];80" \
+      -e BACKEND_DB_SLAVES="/services/prod/db/slaves/3306;3306" \
+      -e BACKEND_DB_MASTER="/services/prod/db/master/3306;3306"
 
 ---------------
 Service Descriptor
@@ -67,12 +67,12 @@ Service descriptors are read from the environment variables of the container, th
 
 The descriptor itself has the following format;
 
-    BACKEND_NAME=<SERVICE_NAME>[OPTIONAL_TAGS,..];<PORT>/<PROTO>
+    BACKEND_NAME=<SERVICE_NAME>;<PORT>
 
     consul example
-    BACKEND_REDIS_SERVICE=redis.master[prod,stats];6379/tcp
+    BACKEND_REDIS_SERVICE=redis.master;6379
     or using etcd keys
-    BACKEND_REDIS_SERVICE=/services/prod/redis.master[prod,stats];6379/tcp
+    BACKEND_REDIS_SERVICE=/services/prod/redis.master;6379
 
 --------------
 

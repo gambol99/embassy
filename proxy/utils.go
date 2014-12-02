@@ -17,87 +17,70 @@ limitations under the License.
 package proxy
 
 import (
-	"syscall"
-	"strconv"
 	"net"
 	"fmt"
 
 	"github.com/gambol99/embassy/utils"
-	"github.com/gambol99/embassy/config"
-	"github.com/gambol99/embassy/services"
+	"github.com/gambol99/embassy/proxy/services"
+	"github.com/gambol99/embassy/proxy/endpoints"
 	"github.com/golang/glog"
-	"github.com/gambol99/embassy/endpoints"
+	"github.com/gambol99/embassy/proxy/loadbalancer"
 )
 
 const SO_ORIGINAL_DST = 80
 
-func NewProxyStore(cfg *config.Configuration, store services.ServiceStore) (ProxyService, error) {
-	glog.Infof("Creating a new ProxyService")
-	proxy := new(ProxyStore)
-	proxy.Config = cfg
-    	/* step: create a channel to listen for new services from the store */
-	glog.V(4).Infof("Creating a services channel for the proxy")
-	proxy.ServicesChannel = make(services.ServiceStoreChannel,10)
-	store.AddServiceListener(proxy.ServicesChannel)
-    	/* step: create a tcp listener for the proxy service */
-	glog.V(2).Infof("Binding proxy to interface: %s:%d", cfg.IPAddress, cfg.ProxyPort)
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.ProxyPort))
+/*
+Create the proxy service - the main routine for handling requests and events
+ */
+func NewProxyService(cfg Configuration, store services.ServiceStore) (ProxyService, error) {
+	glog.Infof("Initializing the ProxyService [config] => %s", cfg )
+	service := new(ProxyStore)
+	service.Config = cfg
+	service.Store = store
+	/* step: we need to grab the ip address of the interface to bind to */
+	ipaddress, err := utils.GetLocalIPAddress(cfg.Interface)
 	if err != nil {
-		glog.Errorf("Unable to bind proxy service, error: %s", err)
+		glog.Error("Unable to get the local ip address from interface: %s, error: %s", cfg.Interface, err )
 		return nil, err
 	}
-	proxy.Listener = listener
-	/* step: create the map for holder proxiers */
-	proxy.Proxies = make(map[ProxyID]ServiceProxy, 0)
-	/* step: create the shutdown channel */
-	proxy.Shutdown = make(utils.ShutdownSignalChannel)
-	/* step: start finding services */
-	store.FindServices()
-	return proxy, nil
+	/* step: setup and initialize the rest */
+	service.Proxies = make(map[ProxyID]ServiceProxy, 0)
+	service.Shutdown = make(utils.ShutdownSignalChannel)
+
+	glog.Infof("Binding proxy service to interface: %s:%d", ipaddress, cfg.ProxyPort )
+	listener , err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.ProxyPort ) )
+	if err != nil {
+		glog.Errorf("Failed to bind the proxy service to interface, error: %s", err)
+		return nil, err
+	}
+	service.Listener = listener
+	return service, nil
 }
 
-func NewServiceProxy(cfg *config.Configuration, service services.Service) (ServiceProxy, error) {
-	glog.Infof("Creating a new proxier, service: %s", service )
+func NewServiceProxy(si services.Service, discovery string) (ServiceProxy, error) {
+	glog.Infof("Initializing a new service proxy for service: %s, discovery: %s", si, discovery )
 
-	proxier := new(Proxier)
-	proxier.Service = service
-
-	/* step: create a load balancer on the service */
-	if balancer, err := NewLoadBalancer("rr"); err != nil {
-		glog.Errorf("Failed to create load balancer for proxier, service: %s, error: %s", service, err)
+	proxy := new(Proxier)
+	proxy.Service = si
+	if balancer, err := loadbalancer.NewLoadBalancer("rr"); err != nil {
+		glog.Errorf("Failed to create load balancer for proxier, service: %s, error: %s", si, err)
 		return nil, err
 	} else {
-		proxier.Balancer = balancer
+		proxy.Balancer = balancer
 	}
-
-	/* step: create a discovery agent on the proxier service */
-	if endpoints, err := endpoints.NewEndpointsService(cfg, service); err != nil {
-		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", service, err)
+	/* step: create a endpoints store for this service */
+	if endpoints, err := endpoints.NewEndpointsService(discovery, si); err != nil {
+		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", si, err)
 		return nil, err
 	} else {
-		proxier.Endpoints = endpoints
-		if err = proxier.Endpoints.Synchronize(); err != nil {
+		proxy.Endpoints = endpoints
+		if err = proxy.Endpoints.Synchronize(); err != nil {
 			glog.Errorf("Failed to synchronize the endpoints on proxier startup, error: %s", err)
 		}
+		/* step: start the discovery agent watcher */
+		proxy.Endpoints.WatchEndpoints()
 	}
-	/* step: start the discovery agent watcher */
-	proxier.Endpoints.WatchEndpoints()
 	/* step: handle the events */
-	proxier.HandleEvents()
-	return proxier, nil
-}
-
-func GetOriginalPort(conn *net.TCPConn) (string, error) {
-	descriptor, err := conn.File()
-	if err != nil {
-		glog.Errorf("Unable to get tcp descriptor, connection: %s, error: ", conn.RemoteAddr(), err)
-		return "", err
-	}
-	addr, err := syscall.GetsockoptIPv6Mreq(int(descriptor.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
-	if err != nil {
-		glog.Errorf("Unable to get the original destination port for connection: %s, error: %s", conn.RemoteAddr(), err)
-		return "", err
-	}
-	destination := uint16(addr.Multiaddr[2])<<8 + uint16(addr.Multiaddr[3])
-	return strconv.Itoa(int(destination)), nil
+	proxy.ProcessEvents()
+	return proxy, nil
 }

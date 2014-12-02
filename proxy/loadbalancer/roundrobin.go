@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package proxy
+package loadbalancer
 
 import (
 	"errors"
 	"sync"
 
-	"github.com/gambol99/embassy/endpoints"
+	"github.com/gambol99/embassy/proxy/endpoints"
 	"github.com/golang/glog"
 )
 

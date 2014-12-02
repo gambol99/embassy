@@ -14,17 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package endpoints
+package services
 
-import (
-	"github.com/gambol99/embassy/services"
-)
+/*
+the channel is used by the service store to send service requests and removal
+from over to the proxy service
+ */
+type ServiceEventsChannel chan ServiceEvent
 
-type EndpointsProvider interface {
-	/* get a list of the endpoints from the backend */
-	List(*services.Service) ([]Endpoint, error)
-	/* watch for changes on the backend */
-	Watch(*services.Service) (EndpointChangedChannel,error)
-	/* shutdown and clean up the provider */
+/*
+the services store only has to implement the following
+ */
+type ServiceStore interface {
+	/* close the services store */
 	Close()
+	/* kick of listening to services */
+	Start() error
+	/* add a event listener for service events */
+	AddServiceListener(ServiceEventsChannel)
 }

@@ -14,39 +14,40 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package endpoints
+package services
 
 import (
 	"fmt"
-
-	"github.com/gambol99/embassy/services"
 )
-
-type EndPointChangeAction int
 
 const (
-	CHANGED = 1 << iota
-	DELETED
+	SERVICE_REQUEST	= 1 << iota
+	SERVICE_REMOVAL
 )
 
-type EndpointChangedEvent struct {
-	Path 	 string
-	Event 	 EndPointChangeAction
+type Operation int
+
+type ServiceEvent struct {
+	/* the operation type - adding or removing a service */
+	Action Operation
+	/* the service definition */
+	Service Service
 }
 
-func (r EndpointChangedEvent) String() string {
-	return fmt.Sprintf("event: [%s] %s", r.Path, r.Event )
+func (r ServiceEvent) String() string {
+	return fmt.Sprintf("action: %s, service: %s", r.Action, r.Service )
 }
 
-/*
-The event which is sent to the listeners
- */
-type EndpointEvent struct {
-	Event    EndPointChangeAction
-	Service  services.Service
+func (r ServiceEvent) IsServiceRequest() bool {
+	if r.Action == SERVICE_REQUEST {
+		return true
+	}
+	return false
 }
 
-func (r EndpointEvent) String() string {
-	return fmt.Sprintf("action: %s, service: %s", r.Event, r.Service )
+func (r ServiceEvent) IsServiceRemoval() bool {
+	if r.Action == SERVICE_REMOVAL {
+		return true
+	}
+	return false
 }
-

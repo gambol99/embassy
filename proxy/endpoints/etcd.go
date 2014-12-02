@@ -25,8 +25,7 @@ import (
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gambol99/embassy/utils"
-	"github.com/gambol99/embassy/config"
-	"github.com/gambol99/embassy/services"
+	"github.com/gambol99/embassy/proxy/services"
 	"github.com/golang/glog"
 )
 
@@ -40,11 +39,11 @@ const (
 	ETCD_PREFIX = "etcd://"
 )
 
-func NewEtcdStore(cfg *config.Configuration) (EndpointsProvider, error) {
-	glog.V(3).Infof("Creating a Etcd client, hosts: %s", cfg.DiscoveryURI)
+func NewEtcdStore(uri string) (EndpointsProvider, error) {
+	glog.V(3).Infof("Creating a Etcd client, hosts: %s", uri )
 	/* step: get the etcd nodes from the discovery uri */
 	return &EtcdClient{
-		etcd.NewClient(GetEtcdHosts(cfg.DiscoveryURI)),
+		etcd.NewClient(GetEtcdHosts(uri)),
 		make(utils.ShutdownSignalChannel),false}, nil
 }
 
@@ -54,9 +53,9 @@ func (r *EtcdClient) Close() {
 	r.Shutdown <- true
 }
 
-func (e *EtcdClient) Watch(si *services.Service) (updates EndpointChangedChannel, err error) {
+func (e *EtcdClient) Watch(si *services.Service) (updates EndpointEventChannel, err error) {
 	/* channel to send back events to the endpoints store */
-	endpointUpdateChannel := make(EndpointChangedChannel,5)
+	endpointUpdateChannel := make(EndpointEventChannel,5)
 	/* channel to receive events from the watcher */
 	endpointWatchChannel := make(chan *etcd.Response)
 	/* channel to close the watcher */
@@ -68,13 +67,13 @@ func (e *EtcdClient) Watch(si *services.Service) (updates EndpointChangedChannel
 		for {
 			select {
 			case update := <-endpointWatchChannel:
-				var event EndpointChangedEvent
-				event.Path = update.Node.Key
+				var event EndpointEvent
+				event.ID = update.Node.Key
 				switch update.Action {
 				case "set":
-					event.Event = CHANGED
+					event.Action = ENDPOINT_CHANGED
 				case "delete":
-					event.Event = DELETED
+					event.Action = ENDPOINT_REMOVED
 				default:
 					glog.Errorf("Unknown action recieved from etcd: %V", update )
 					continue
@@ -170,6 +169,8 @@ func GetEtcdHosts(uri string) []string {
 	}
 	return hosts
 }
+
+/* --------- Service Document Decoding ------------ */
 
 type EtcdServiceDocument struct {
 	IPaddress string   `json:"ipaddress"`

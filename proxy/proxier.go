@@ -25,27 +25,13 @@ import (
 	"fmt"
 
 	"github.com/gambol99/embassy/utils"
-	"github.com/gambol99/embassy/endpoints"
-	"github.com/gambol99/embassy/services"
+	"github.com/gambol99/embassy/proxy/services"
+	"github.com/gambol99/embassy/proxy/endpoints"
+	"github.com/gambol99/embassy/proxy/loadbalancer"
 	"github.com/golang/glog"
 )
 
 var endpointDialTimeout = []time.Duration{1, 2, 4}
-
-type Proxier struct {
-	/* the service the proxy is proxying for */
-	Service   services.Service
-	/* the discovery agent for this service */
-	Endpoints endpoints.EndpointsStore
-	/* the load balancer for this service */
-	Balancer  LoadBalancer
-	/* the shutdown signal */
-	Shutdown utils.ShutdownSignalChannel
-}
-
-func (px Proxier) String() string {
-	return fmt.Sprintf("service: %s", px.Service )
-}
 
 type ServiceProxy interface {
 	/* close all the assets associated to this service */
@@ -54,6 +40,21 @@ type ServiceProxy interface {
 	HandleTCPConnection(*net.TCPConn) error
 	/* retrieve the service associated */
 	GetService() services.Service
+}
+
+type Proxier struct {
+	/* the service the proxy is proxying for */
+	Service   services.Service
+	/* the discovery agent for this service */
+	Endpoints endpoints.EndpointsStore
+	/* the load balancer for this service */
+	Balancer  loadbalancer.LoadBalancer
+	/* the shutdown signal */
+	Shutdown utils.ShutdownSignalChannel
+}
+
+func (px Proxier) String() string {
+	return fmt.Sprintf("service: %s", px.Service )
 }
 
 func (r *Proxier) Close() {
@@ -65,10 +66,10 @@ func (r *Proxier) GetService() services.Service {
 	return r.Service
 }
 
-func (r *Proxier) HandleEvents() {
+func (r *Proxier) ProcessEvents() {
 	glog.V(4).Infof("Starting to handle event for service proxy: %s", r )
 	/* step: add a event listener to endpoints */
-	endpointsChannel := make(endpoints.EndpointChannel,0)
+	endpointsChannel := make(endpoints.EndpointEventChannel,0)
 	r.Endpoints.AddEventListener(endpointsChannel)
 	go func() {
 		defer close(endpointsChannel)
@@ -125,7 +126,7 @@ func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
 		}
 		glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint )
 		/* step: attempt to connect to the backend */
-		outConn, err := net.DialTimeout(r.Service.Protocol(), string(endpoint), retryTimeout*time.Second)
+		outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout*time.Second)
 		if err != nil {
 			glog.Errorf("Failed to connect to backend service: %s, error: %s", endpoint, err)
 			continue

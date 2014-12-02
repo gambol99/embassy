@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package store
 
 import (
 	"errors"
@@ -23,13 +23,14 @@ import (
 	"strings"
 
 	"github.com/gambol99/embassy/utils"
+	"github.com/gambol99/embassy/proxy/services"
 )
 
 /*
-  SERVICE=<SERVICE_NAME>[TAGS,..];<PORT>;[PROTOCOL];
+  SERVICE=<SERVICE_NAME>;<PORT>;
   BACKEND=etcd://localhost:4001
   BACKEND_REDIS_MASTER=redis.master;PORT
-  BACKEND_REDIS_MASTER=redis.master[prod,dc1]
+  BACKEND_REDIS_MASTER=redis.master
   BACKEND_REDIS_MASTER=/services/prod/redis/master/6379/*;PORT;OPTION=VALUE,;
 */
 
@@ -46,10 +47,9 @@ type DefinitionEvent struct {
 }
 
 var (
-	BD_DEFINITION   = regexp.MustCompile(`([[:alnum:]\/\.\-\_*]+)(\[(.*)\])?;([[:digit:]]{1,5})\/(tcp|udp)`)
+	BD_DEFINITION   = regexp.MustCompile(`([[:alnum:]\/\.\-\_*]+);([[:digit:]]{1,5})`)
 	BD_SERVICE_NAME = regexp.MustCompile(`([[:alnum:]\/\.\-\_*]+)`)
-	BD_SERVICE_PORT = regexp.MustCompile(`([[:digit:]]+)\/(tcp|udp)`)
-	BD_SERVICE_TAGS = regexp.MustCompile(`\[(.*)\]`)
+	BD_SERVICE_PORT = regexp.MustCompile(`([[:digit:]]+)`)
 )
 
 func (b DefinitionEvent) IsValid() bool {
@@ -61,29 +61,18 @@ func (b DefinitionEvent) String() string {
 }
 
 /* /services/prod/redis/master/6379/*;PORT;OPTION=VALUE */
-func (b DefinitionEvent) GetService() (service Service, err error) {
+func (b DefinitionEvent) GetService() (service services.Service, err error) {
 	if matched := b.IsValid(); matched {
 		sections := strings.Split(b.Definition, ";")
 		section_name := sections[0]
 		section_network := sections[1]
 
-		service.ID = ServiceID(b.Definition)
-		service.SourceIP = b.SourceAddress
+		service.ID = services.ServiceID(b.Definition)
+		service.Consumer = b.SourceAddress
 		service.Name = BD_SERVICE_NAME.FindStringSubmatch(section_name)[0]
 		service.Port, err = utils.ToInteger(BD_SERVICE_PORT.FindAllStringSubmatch(section_network, 1)[0][1])
 		if err != nil {
 			return service, errors.New("Invalid service port found in defintion")
-		}
-		protocol := BD_SERVICE_PORT.FindAllStringSubmatch(section_network, 1)[0][2]
-		switch protocol {
-		case "tcp":
-			service.Proto = TCP
-		case "udp":
-			service.Proto = UDP
-		}
-		/* step: get the service tags */
-		if strings.Index(section_name, "[") > 0 {
-			service.Tags = strings.Split(BD_SERVICE_TAGS.FindStringSubmatch(section_name)[0], ",")
 		}
 	} else {
 		return service, errors.New("Invalid service definition, does not match requirements")

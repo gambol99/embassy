@@ -20,17 +20,16 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/gambol99/embassy/config"
-	"github.com/gambol99/embassy/services"
+	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
-/* a channel used by the provider to say something has changed */
-type EndpointChangedChannel chan EndpointChangedEvent
+/* an endpoint is ip+port */
+type Endpoint string
 
-/* a channel used by the endpoints store to send changes to services to the proxy service */
-type EndpointChannel chan EndpointEvent
+/* a channel used by the provider to say something has changed */
+type EndpointEventChannel chan EndpointEvent
 
 type EndpointsStore interface {
 	/* shutdown the discovery agent */
@@ -42,7 +41,7 @@ type EndpointsStore interface {
 	/* synchronize the endpoints for this service */
 	Synchronize() error
 	/* add an listener to discovery events */
-	AddEventListener(EndpointChannel)
+	AddEventListener(EndpointEventChannel)
 }
 
 type EndpointsStoreService struct {
@@ -52,17 +51,15 @@ type EndpointsStoreService struct {
 	Service services.Service
 	/* the backend provider - etcd | consul | something else */
 	Provider EndpointsProvider
-	/* the service configuration */
-	Config *config.Configuration
 	/* the current list of endpoints for this service */
 	Endpoints []Endpoint
 	/* channel for listeners on endpoints */
-	Listeners []EndpointChannel
+	Listeners []EndpointEventChannel
 	/* channel for shutdown signal */
 	Shutdown utils.ShutdownSignalChannel
 }
 
-func (r *EndpointsStoreService) AddEventListener(channel EndpointChannel) {
+func (r *EndpointsStoreService) AddEventListener(channel EndpointEventChannel) {
 	glog.V(5).Infof("Adding listener for endpoint events, channel: %V", channel )
 	r.Listeners = append(r.Listeners, channel)
 }
@@ -74,20 +71,18 @@ func (ds *EndpointsStoreService) ListEndpoints() (endpoints []Endpoint, err erro
 	return ds.Endpoints, nil
 }
 
-func (ds *EndpointsStoreService) PushEventToListeners(event EndpointChangedEvent) {
+func (ds *EndpointsStoreService) PushEventToListeners(event EndpointEvent) {
 	glog.V(3).Infof("Pushing the event: %s to all listeners", event )
 
 	/* create the event for us and wrap the service */
-	var updateEvent EndpointEvent
-	updateEvent.Service = ds.Service
-	updateEvent.Event = event.Event
+	event.Service = ds.Service
 
 	/* step: send the event to all the listeners */
 	for _, listener := range ds.Listeners {
-		/* step: we run this in a goroutine not to block */
+		/* step: we run this in a go-routine not to block */
 		go func() {
 			glog.V(12).Infof("Pushing the event: %s to listener: %v", event, listener )
-			listener <- updateEvent
+			listener <- event
 		}()
 	}
 }
