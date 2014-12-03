@@ -26,10 +26,10 @@ import (
 )
 
 func main() {
-	glog.Infof("Starting the Embassy Docker Service Proxy, version: %s", Version )
-
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	config := cli.ParseOptions()
+
+	glog.Infof("Starting the Embassy Docker Service Proxy, version: %s", Version )
 	/* step: create the services store */
 	services := store.NewServiceStore()
 	/* step: we use the default docker store for now */
