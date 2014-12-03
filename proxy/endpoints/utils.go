@@ -17,6 +17,9 @@ limitations under the License.
 package endpoints
 
 import (
+	"net/url"
+	"errors"
+
 	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/golang/glog"
@@ -31,13 +34,30 @@ func NewEndpointsService(discovery string, si services.Service) (EndpointsStore,
 	endpoints.Endpoints = make([]Endpoint, 0)
 	endpoints.Listeners = make([]EndpointEventChannel,0)
 	endpoints.Shutdown = make(utils.ShutdownSignalChannel)
+
 	/* step: create the backend provider */
-	glog.Infof("Using Etcd as discovery backend, uri: %s", discovery )
-	provider, err := NewEtcdStore(discovery)
+
+	uri, err := url.Parse(discovery)
 	if err != nil {
-		glog.Errorf("Unable to initialize the Etcd backend store, error: %s", err)
+		glog.Errorf("Failed to parse the discovery url: %s, error: %s", discovery, err )
 		return nil, err
 	}
+	glog.Infof("Using endpoints agent: %s, discovery uri: %s", uri.Scheme, discovery )
+	var provider EndpointsProvider
+	switch uri.Scheme {
+	case "etcd":
+		provider, err = NewEtcdStore(discovery)
+	case "consul":
+		provider, err = NewConsulClent(discovery)
+	default:
+		glog.Errorf("Failed to create endpoints agent, the backend: %s is not supported", discovery )
+		return nil, errors.New("Unsupported backend " + discovery )
+	}
+	if err != nil {
+		glog.Errorf("Failed to initialize the endpoint: %s, error: %s", discovery, err )
+		return nil, err
+	}
+	glog.V(5).Infof("Succesfully initialize the endpoints %s", discovery )
 	endpoints.Provider = provider
 	return endpoints, nil
 }
