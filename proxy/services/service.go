@@ -17,34 +17,31 @@ limitations under the License.
 package services
 
 import (
+	"errors"
 	"fmt"
+
+	"github.com/gambol99/embassy/utils"
 )
 
-const (
-	SERVICE_REQUEST	= 1 << iota
-	SERVICE_CLOSED
-)
+type ServiceID string
 
-type ServiceOperation int
+type Service struct {
+	ID       ServiceID
+	Name     string
+	Consumer string
+	Port     int
+}
 
-func (s ServiceOperation) String() string {
-	switch s {
-	case SERVICE_REQUEST:
-		return "SERVICE_REQUEST"
-	case SERVICE_CLOSED:
-		return "SERVICE_CLOSED"
-	default:
-		return "UNKNOWN"
+func (s Service) IsValid() error {
+	if s.Name == "" {
+		return errors.New("Service does not have a name field")
 	}
+	if _, err := utils.IsPort(s.Port); err != nil {
+		return errors.New("Invalid service port, check the service document")
+	}
+	return nil
 }
 
-type ServiceEvent struct {
-	/* the operation type - adding or removing a service */
-	Operation ServiceOperation
-	/* the service definition */
-	Service Service
-}
-
-func (s ServiceEvent) String() string {
-	return fmt.Sprintf("action: %s, service: %s", s.Operation, s.Service )
+func (s Service) String() string {
+	return fmt.Sprintf("name: %s:%s, ip: %s", s.Name, s.Port, s.Consumer)
 }

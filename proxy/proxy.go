@@ -20,9 +20,11 @@ import (
 	"net"
 	"sync"
 	"errors"
+	"fmt"
+	"syscall"
+	"strconv"
 
-	"github.com/gambol99/embassy/config"
-	"github.com/gambol99/embassy/services"
+	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
@@ -38,13 +40,31 @@ type ProxyStore struct {
 	Listener net.Listener
 	/* a map of the proxy [source_ip+service_port] to the proxy service handler */
 	Proxies map[ProxyID]ServiceProxy
-	/* channel for new service requests from the store */
-	ServicesChannel services.ServiceStoreChannel
 	/* channel for shutdown down */
 	Shutdown utils.ShutdownSignalChannel
 	/* service configuration */
-	Config *config.Configuration
+	Config Configuration
+	/* the services store */
+	Store services.ServiceStore
 }
+
+/* --------------- Proxy ID ------------------- */
+
+type ProxyID string
+
+func (p *ProxyID) String() string {
+	return fmt.Sprintf("proxyId: %s", *p )
+}
+
+func GetProxyIDByConnection(source, port string) ProxyID {
+	return ProxyID(fmt.Sprintf("%s:%s", source, port))
+}
+
+func GetProxyIDByService(si *services.Service) ProxyID {
+	return ProxyID(fmt.Sprintf("%s:%d", si.Consumer, si.Port))
+}
+
+/* --------------- Proxy Service -------------- */
 
 func (px *ProxyStore) Close() {
 	glog.V(4).Infof("Request to shutdown the proxy services")
@@ -53,20 +73,38 @@ func (px *ProxyStore) Close() {
 
 func (px *ProxyStore) Start() error {
 	glog.Infof("Starting the TCP Proxy Service")
-	/* step: lets start handling connections */
+
+	/* step: add ourselves us a listener to service events */
+	glog.V(5).Infof("Initializing the service discovery and starting to listen")
+	service_updates := make(services.ServiceEventsChannel, 10 )
+	defer close(service_updates)
+	px.Store.AddServiceListener(service_updates)
+	/* step: we need to start listening for services */
+	if err := px.Store.Start(); err != nil {
+		glog.Errorf("Failed to start the service discovery subsystem, error: %s", err )
+		return err
+	}
+
+	/* step: start the connection handling */
 	if err := px.ProxyConnections(); err != nil {
 		glog.Errorf("Failed to start listening for connections, error: %s", err)
 		return err
 	}
+
+	/* step: the main event loop for the proxy service;
+		- listening for service events
+		- listening for shutdown requests
+	 */
 	for {
 		select {
 		case <-px.Shutdown:
 			glog.Infof("Received shutdown signal. Propagating the signal to the proxies: %d", len(px.Proxies))
 			for _, proxier := range px.Proxies {
 				glog.Infof("Sending the kill signal to proxy: %s", proxier )
+				proxier.Close()
 			}
-		case event := <-px.ServicesChannel:
-			glog.Infof("ProxyService recieved service update, service: %s, operation: %s", event.Service, event.Operation )
+		case event := <-service_updates:
+			glog.Infof("ProxyService recieved service update, service: %s, action: %s", event.Service, event.Action )
 			/* step: check if the service is already being processed */
 			if err := px.ProcessServiceEvent(&event); err != nil {
 				glog.Errorf("Unable to process the service request: %s, error: %s", event.Service, err )
@@ -76,16 +114,12 @@ func (px *ProxyStore) Start() error {
 	return nil
 }
 
-func (px *ProxyStore) ProcessServiceEvent(si *services.ServiceEvent) error {
+func (px *ProxyStore) ProcessServiceEvent(event *services.ServiceEvent) error {
 	/* check: is this a service request or down */
-	switch si.Operation {
-	case services.SERVICE_REQUEST:
-		go px.CreateServiceProxy(si.Service)
-	case services.SERVICE_CLOSED:
-		go px.DestroyServiceProxy(si.Service)
-	default:
-		glog.Errorf("Unknown service request operation, service: %s", si )
-		return errors.New("Unknow service request operation")
+	if event.IsServiceRequest() {
+		go px.CreateServiceProxy(event.Service)
+	} else if event.IsServiceRemoval() {
+		go px.DestroyServiceProxy(event.Service)
 	}
 	return nil
 }
@@ -97,12 +131,13 @@ func (px *ProxyStore) ProcessServiceEvent(si *services.ServiceEvent) error {
 - Pass the connection to the in a go handler
 */
 func (px *ProxyStore) ProxyConnections() error {
+	glog.V(5).Infof("Starting to listen for incoming connections" )
 	go func() {
 		for {
 			/* wait for a connection */
 			conn, err := px.Listener.Accept()
 			if err != nil {
-				glog.Errorf("Accept connection failed: %s", err)
+				glog.Errorf("Failed to accept connection, error: %s", err)
 				continue
 			}
 			/* handle the rest with in go routine and return to pick up another connection */
@@ -114,7 +149,7 @@ func (px *ProxyStore) ProxyConnections() error {
 					connection.Close()
 				}
 				/* step: get the original port */
-				original_port, err := GetOriginalPort(connection)
+				original_port, err := px.GetOriginalPort(connection)
 				if err != nil {
 					glog.Errorf("Unable to get the original port, connection: %s, error: %s", connection.RemoteAddr(), err)
 					connection.Close()
@@ -144,6 +179,24 @@ func (px *ProxyStore) ProxyConnections() error {
 		}
 	}()
 	return nil
+}
+
+/*
+Derive the original port from the tcp header
+ */
+func (px *ProxyStore) GetOriginalPort(conn *net.TCPConn) (string, error) {
+	descriptor, err := conn.File()
+	if err != nil {
+		glog.Errorf("Unable to get tcp descriptor, connection: %s, error: ", conn.RemoteAddr(), err)
+		return "", err
+	}
+	addr, err := syscall.GetsockoptIPv6Mreq(int(descriptor.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
+	if err != nil {
+		glog.Errorf("Unable to get the original destination port for connection: %s, error: %s", conn.RemoteAddr(), err)
+		return "", err
+	}
+	destination := uint16(addr.Multiaddr[2])<<8 + uint16(addr.Multiaddr[3])
+	return strconv.Itoa(int(destination)), nil
 }
 
 func (px *ProxyStore) LookupProxierByServiceId(id services.ServiceID) (ServiceProxy,bool) {
@@ -176,7 +229,7 @@ func (px *ProxyStore) CreateServiceProxy(si services.Service) error {
 		px.AddServiceProxy(proxyID, proxy )
 	} else {
 		glog.Infof("Creating new proxy service for service: %s, consumer", si, proxyID )
-		proxy, err := NewServiceProxy(px.Config, si)
+		proxy, err := NewServiceProxy(si, px.Config.DiscoveryURI )
 		if err != nil {
 			glog.Errorf("Unable to create proxier, service: %s, error: %s", si, err )
 			return err

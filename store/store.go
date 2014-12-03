@@ -14,28 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package store
 
 import (
 	"errors"
 
 	"github.com/gambol99/embassy/utils"
-	"github.com/gambol99/embassy/config"
+	"github.com/gambol99/embassy/proxy/services"
 	"github.com/golang/glog"
 )
 
 type ServiceStore interface {
-	Close()
-	FindServices() error
-	AddServiceListener(ServiceStoreChannel)
+	services.ServiceStore
 	AddServiceProvider(name string, provider ServiceProvider) error
 }
-
-/*
-the channel is used by the service store to send service requests and removal
-from over to the proxy service
- */
-type ServiceStoreChannel chan ServiceEvent
 
 /*
 the channel is used to send events from the backends to the service store and
@@ -59,14 +51,13 @@ the implementation for the services store
  - a shutdown down signal
  */
 type ServiceStoreImpl struct {
-	Config    		*config.Configuration
 	BackendChannel  BackendServiceChannel
 	Providers 		map[string]ServiceProvider
-	Listeners		[]ServiceStoreChannel
+	Listeners		[]services.ServiceEventsChannel
 	Shutdown  		utils.ShutdownSignalChannel
 }
 
-func (r *ServiceStoreImpl) AddServiceListener(channel ServiceStoreChannel) {
+func (r *ServiceStoreImpl) AddServiceListener(channel services.ServiceEventsChannel) {
 	glog.V(2).Infof("Adding a new service listener to the ServiceStore, channel: %V", channel)
 	r.Listeners = append(r.Listeners, channel)
 }
@@ -81,20 +72,20 @@ func (r *ServiceStoreImpl) AddServiceProvider(name string, provider ServiceProvi
 	return nil
 }
 
-func (r *ServiceStoreImpl) PushServiceEvent(service ServiceEvent) {
+func (r *ServiceStoreImpl) PushServiceEvent(service services.ServiceEvent) {
 	for _, channel := range r.Listeners {
-		go func(ch ServiceStoreChannel) {
+		go func(ch services.ServiceEventsChannel) {
 			ch <- service
 			glog.V(12).Infof("Pushed the service event: %s to listener: %V", service, ch )
 		}(channel)
 	}
 }
 
-func (r *ServiceStoreImpl) FindServices() error {
+func (r *ServiceStoreImpl) Start() error {
 	if len(r.Providers) <= 0 {
-		return errors.New("You have not registered any providers")
+		return errors.New("You have not registered any service providers")
 	}
-	glog.V(3).Infof("Starting the discovery of services loop, providers: %d", len(r.Providers))
+	glog.V(3).Infof("Starting the services loop, providers: %d", len(r.Providers) )
 	/* step: start the providers service stream */
 	for name, provider := range r.Providers {
 		glog.Infof("Starting the service stream from provider: %s", name)
@@ -102,6 +93,12 @@ func (r *ServiceStoreImpl) FindServices() error {
 			glog.Errorf("Unable to start provider: %s service stream, error: %s", name, err)
 		}
 	}
+	r.FindServices()
+	return nil
+}
+
+func (r *ServiceStoreImpl) FindServices() error {
+	glog.V(4).Infof("Entered the service stream, pushing service across channel" )
 	go func() {
 		for {
 			select {
@@ -116,15 +113,15 @@ func (r *ServiceStoreImpl) FindServices() error {
 				if service, err := definition.GetService(); err != nil {
 					glog.Errorf("The service definition is invalid, error: %s", err)
 				} else {
-					var event ServiceEvent
+					var event services.ServiceEvent
 					event.Service = service
 					switch definition.Operation {
 					case DEFINITION_SERVICE_ADDED:
-						event.Operation = SERVICE_REQUEST
+						event.Action = services.SERVICE_REQUEST
 					case DEFINITION_SERVICE_REMOVED:
-						event.Operation = SERVICE_CLOSED
+						event.Action = services.SERVICE_REMOVAL
 					default:
-						glog.Errorf("Unable definition operation: %d", definition.Operation)
+						glog.Errorf("Unable definition operation: %d", definition.Operation )
 						continue;
 					}
 					r.PushServiceEvent(event)

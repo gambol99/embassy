@@ -16,36 +16,34 @@ limitations under the License.
 package main
 
 import (
-	"flag"
+	"runtime"
 	"os"
 
-	"github.com/gambol99/embassy/config"
+	"github.com/gambol99/embassy/cli"
+	"github.com/gambol99/embassy/store"
 	"github.com/gambol99/embassy/proxy"
-	"github.com/gambol99/embassy/services"
 	"github.com/golang/glog"
-	"runtime"
 )
 
 func main() {
+	glog.Infof("Starting the Embassy Docker Service Proxy, version: %s", Version )
+
 	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	/* step: parse command line options */
-	configuration := ParseOptions()
-
-	/* step: create a backend service provider */
-	store := LoadServicesStore(configuration)
-
-	glog.Infof("Starting the Embassy Proxy Service, local ip: %s, hostname: %s",
-		configuration.IPAddress, configuration.HostName)
-
+	config := cli.ParseOptions()
+	/* step: create the services store */
+	services := store.NewServiceStore()
+	/* step: we use the default docker store for now */
+	if err := store.AddDockerServiceStore( services ); err != nil {
+		glog.Errorf("Failed to add the docker service provider, error: %s", err )
+		os.Exit(1)
+	}
 	/* step: create the proxy service */
-	service, err := proxy.NewProxyStore(configuration, store)
+	service, err := proxy.NewProxyService(config, services)
 	if err != nil {
 		glog.Errorf("Failed to create the proxy service, error: %s", err)
 		return
 	}
 
-	/* kick of the proxy and wait */
 	done := make(chan bool)
 	go func() {
 		if err := service.Start(); err != nil {
@@ -54,32 +52,6 @@ func main() {
 		}
 		done <- true
 	}()
-	var finished = <-done
-	glog.Infof("Exitting the proxy service: %s", finished )
-}
-
-func ParseOptions() *config.Configuration {
-	flag.Parse()
-	configuration := config.NewConfiguration()
-	glog.Infof("Loading the configuration: %v", configuration)
-	/* step: validate the service configuration */
-	err := configuration.ValidConfiguration()
-	Assert(err, "Invalid service configuration options, please check usage")
-	return configuration
-}
-
-func LoadServicesStore(cfg *config.Configuration) services.ServiceStore {
-	glog.V(5).Infof("Attempting to create a new services store")
-	store := services.NewServiceStore(cfg)
-	/* step: add the docker provider */
-	services.AddDockerServiceStore(store, cfg)
-	/* step: return the store */
-	return store
-}
-
-func Assert(err error, message string) {
-	if err != nil {
-		glog.Errorf("%s, error: %s", message, err)
-		os.Exit(1)
-	}
+	<-done
+	glog.Infof("Exitting the proxy service ")
 }

@@ -14,24 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package store
 
 import (
 	"github.com/gambol99/embassy/utils"
-	"github.com/gambol99/embassy/config"
+	"github.com/gambol99/embassy/proxy/services"
 	"github.com/golang/glog"
 )
 
-func NewServiceStore(config *config.Configuration) ServiceStore {
-	return &ServiceStoreImpl{config,
-		make(BackendServiceChannel, 5),      	// channel to pass to providers
-		make(map[string]ServiceProvider, 0), 	// a map of providers
-		make([]ServiceStoreChannel, 0),			// a list of people listening for service updates
+func NewServiceStore() ServiceStore {
+	return &ServiceStoreImpl{
+		// channel to pass to providers
+		make(BackendServiceChannel, 5),
+		// a map of providers
+		make(map[string]ServiceProvider, 0),
+		// a list of people listening for service updates
+		make([]services.ServiceEventsChannel, 0),
+		// shutdown signal for the service
 		make(utils.ShutdownSignalChannel)}
 }
 
-func AddDockerServiceStore(store ServiceStore, cfg *config.Configuration) error {
-	docker_store, err := NewDockerServiceStore(cfg)
+func AddDockerServiceStore(store ServiceStore) error {
+	docker_store, err := NewDockerServiceStore()
 	if err != nil {
 		glog.Errorf("Unable to create the docker service store, error: %s", err)
 		return err

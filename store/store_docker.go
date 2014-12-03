@@ -14,16 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package store
 
 import (
 	"errors"
 	"regexp"
 	"strings"
 	"sync"
+	"flag"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/gambol99/embassy/config"
 	"github.com/golang/glog"
 )
 
@@ -33,13 +33,21 @@ const (
 	DOCKER_CREATED          = "created"
 	DOCKER_DESTROY          = "destroy"
 	DOCKER_CONTAINER_PREFIX = "container:"
+	DEFAULT_DOCKER_SOCKET   = "unix://var/run/docker.sock"
+	DEFAULT_BACKEND_PREFIX  = "BACKEND_"
 )
+
+var (
+	cfg_docker_socket *string
+)
+
+func init() {
+	cfg_docker_socket = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
+}
 
 type DockerServiceStore struct {
 	/* docker api client */
 	Docker *docker.Client
-	/* the service configuration */
-	Config *config.Configuration
 	/* map of container id to definition */
 	ServiceMap
 }
@@ -73,19 +81,19 @@ func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent,bool) {
 	return nil, false
 }
 
-func NewDockerServiceStore(cfg *config.Configuration) (ServiceProvider, error) {
+func NewDockerServiceStore() (ServiceProvider, error) {
 	/* step: we create a docker client */
-	glog.V(3).Infof("Creating docker client api, socket: %s", cfg.DockerSocket)
+	socket := *cfg_docker_socket
+	glog.V(3).Infof("Creating docker client api, socket: %s", socket )
 
 	/* step: create a docker client */
-	client, err := docker.NewClient(cfg.DockerSocket)
+	client, err := docker.NewClient(socket)
 	if err != nil {
 		glog.Errorf("Unable to create a docker client, error: %s", err)
 		return nil, err
 	}
 	docker_store := new(DockerServiceStore)
 	docker_store.Docker = client
-	docker_store.Config = cfg
 	return docker_store, nil
 }
 
@@ -153,7 +161,7 @@ func (r *DockerServiceStore) ProcessDockerCreation(containerID string, channel B
 func (r *DockerServiceStore) ProcessDockerDestroy(containerID string, channel BackendServiceChannel) error {
 	glog.V(4).Infof("Docker destruction event, container: %s", containerID[:12] )
 	if definitions, found := r.Has(containerID); found {
-		glog.V(4).Infof("Found %s definitions for container: %s", len(definitions), containerID[:12])
+		glog.V(4).Infof("Found %d definitions for container: %s", len(definitions), containerID[:12])
 		r.PushServices(channel, definitions, DEFINITION_SERVICE_REMOVED)
 		r.Remove(containerID)
 		glog.V(4).Infof("Successfully removed services from container: %s", containerID[:12])
@@ -202,7 +210,7 @@ func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Def
 
 	/* step; scan the runtime variables for backend links */
 	for key, value := range environment {
-		if r.IsBackendService(key, value) {
+		if r.IsBackendService(key) {
 			glog.V(2).Infof("Found backend request in container: %s, service: %s", containerID, value)
 			/* step: create a backend definition and append to list */
 			var definition DefinitionEvent
@@ -251,8 +259,8 @@ func (r DockerServiceStore) GetContainerIPAddress(container *docker.Container) (
 	}
 }
 
-func (r DockerServiceStore) IsBackendService(key, value string) (found bool) {
-	found, _ = regexp.MatchString(r.Config.BackendPrefix, key)
+func (r DockerServiceStore) IsBackendService(key string) (found bool) {
+	found, _ = regexp.MatchString(DEFAULT_BACKEND_PREFIX, key)
 	return
 }
 
