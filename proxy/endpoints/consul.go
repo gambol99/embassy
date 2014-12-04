@@ -35,7 +35,7 @@ type ConsulClient struct {
 }
 
 const (
-	defaultWaitTime = 60 * time.Second
+	defaultWaitTime = 120 * time.Second
 )
 
 func NewConsulClent(discovery string) (EndpointsProvider, error) {
@@ -68,18 +68,24 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 				return
 			}
 			if r.WaitIndex == 0 {
+				/* step: get the wait index for the service */
 				_, meta, err := catalog.Service(si.Name, "", &consulapi.QueryOptions{})
 				if err != nil {
 					glog.Errorf("Failed to grab the service fron consul, error: %s", err)
 					time.Sleep(5 * time.Second)
 				} else {
+					/* update the wait index for this service */
 					r.WaitIndex = meta.LastIndex
 					glog.V(8).Infof("Last consul index for service: %s was index: %d", si.Name, meta.LastIndex)
 				}
 			}
-			queryOptions := &consulapi.QueryOptions{WaitIndex: r.WaitIndex, WaitTime: defaultWaitTime}
+			/* step: build the query - make sure we have a timeout */
+			queryOptions := &consulapi.QueryOptions{
+				WaitIndex: r.WaitIndex,
+				WaitTime:  defaultWaitTime}
+
+			/* step: making a blocking watch call for changes on the service */
 			_, meta, err := catalog.Service(si.Name, "", queryOptions)
-			glog.V(10).Infof("Change has occurred on service: %s, index: %d", si, r.WaitIndex)
 			if err != nil {
 				glog.Errorf("Failed to wait for service to change, error: %s", err)
 				r.WaitIndex = 0
@@ -88,7 +94,15 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 				if r.KillOff {
 					continue
 				}
+				/* step: if the wait and last index are the same, we can continue */
+				if r.WaitIndex == meta.LastIndex {
+					glog.V(7).Infof("The WaitIndea and LastIndex are the same, skipping")
+					continue
+				}
+				/* step: update the index */
 				r.WaitIndex = meta.LastIndex
+
+				/* step: construct the change event and send */
 				var event EndpointEvent
 				event.ID = si.Name
 				event.Action = ENDPOINT_CHANGED
