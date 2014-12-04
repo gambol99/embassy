@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -77,7 +78,7 @@ func (r *Proxier) ProcessEvents() {
 			case <-r.Shutdown:
 				glog.Infof("Shutting the Service Proxy for service: %s", r.Service)
 				r.Endpoints.Close()
-			case update := <-endpointsChannel:
+			case <-endpointsChannel:
 				glog.V(3).Infof("Endpoints for service: %s updated, synchronizing endpoints", r.Service)
 				if endpoints, err := r.Endpoints.ListEndpoints(); err != nil {
 					glog.Errorf("Unable to push endpoint changes upstream to loadbalancer, error: %s", err)
