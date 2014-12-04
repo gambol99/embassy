@@ -22,12 +22,11 @@ import (
 	"net"
 	"sync"
 	"time"
-	"fmt"
 
-	"github.com/gambol99/embassy/utils"
-	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/proxy/endpoints"
 	"github.com/gambol99/embassy/proxy/loadbalancer"
+	"github.com/gambol99/embassy/proxy/services"
+	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
@@ -35,7 +34,7 @@ var endpointDialTimeout = []time.Duration{1, 2, 4}
 
 type ServiceProxy interface {
 	/* close all the assets associated to this service */
-	Close();
+	Close()
 	/* handle a inbound connection */
 	HandleTCPConnection(*net.TCPConn) error
 	/* retrieve the service associated */
@@ -44,21 +43,21 @@ type ServiceProxy interface {
 
 type Proxier struct {
 	/* the service the proxy is proxying for */
-	Service   services.Service
+	Service services.Service
 	/* the discovery agent for this service */
 	Endpoints endpoints.EndpointsStore
 	/* the load balancer for this service */
-	Balancer  loadbalancer.LoadBalancer
+	Balancer loadbalancer.LoadBalancer
 	/* the shutdown signal */
 	Shutdown utils.ShutdownSignalChannel
 }
 
 func (px Proxier) String() string {
-	return fmt.Sprintf("service: %s", px.Service )
+	return fmt.Sprintf("service: %s", px.Service)
 }
 
 func (r *Proxier) Close() {
-	glog.Infof("Destroying the service proxy: %s", r )
+	glog.Infof("Destroying the service proxy: %s", r)
 	r.Endpoints.Close()
 }
 
@@ -67,9 +66,9 @@ func (r *Proxier) GetService() services.Service {
 }
 
 func (r *Proxier) ProcessEvents() {
-	glog.V(4).Infof("Starting to handle event for service proxy: %s", r )
+	glog.V(4).Infof("Starting to handle event for service proxy: %s", r)
 	/* step: add a event listener to endpoints */
-	endpointsChannel := make(endpoints.EndpointEventChannel,0)
+	endpointsChannel := make(endpoints.EndpointEventChannel, 0)
 	r.Endpoints.AddEventListener(endpointsChannel)
 	go func() {
 		defer close(endpointsChannel)
@@ -79,7 +78,7 @@ func (r *Proxier) ProcessEvents() {
 				glog.Infof("Shutting the Service Proxy for service: %s", r.Service)
 				r.Endpoints.Close()
 			case update := <-endpointsChannel:
-				glog.V(3).Infof("Endpoints for service: %s updated, trigging loadbalancer, update: %s", r.Service, update )
+				glog.V(3).Infof("Endpoints for service: %s updated, synchronizing endpoints", r.Service)
 				if endpoints, err := r.Endpoints.ListEndpoints(); err != nil {
 					glog.Errorf("Unable to push endpoint changes upstream to loadbalancer, error: %s", err)
 				} else {
@@ -124,7 +123,7 @@ func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
 			glog.Errorf("Unable to find an service endpoint for service: %s", r.Service, err)
 			return nil, err
 		}
-		glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint )
+		glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint)
 		/* step: attempt to connect to the backend */
 		outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout*time.Second)
 		if err != nil {
