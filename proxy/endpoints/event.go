@@ -18,8 +18,7 @@ package endpoints
 
 import (
 	"fmt"
-	"time"
-
+	
 	"github.com/gambol99/embassy/proxy/services"
 )
 
