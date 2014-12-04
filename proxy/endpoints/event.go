@@ -35,13 +35,12 @@ The event which is sent to the listeners
  */
 type EndpointEvent struct {
 	ID       string
-	Stamp    time.Time
 	Action   Operation
 	Service  services.Service
 }
 
 func (r EndpointEvent) String() string {
-	return fmt.Sprintf("time: %s, id: %s, action: %s, service: %s", r.Stamp, r.ID, r.Action, r.Service )
+	return fmt.Sprintf("id: %s, action: %s, service: %s", r.ID, r.Action, r.Service )
 }
 
 func (r EndpointEvent) IsChanged() bool {

@@ -75,6 +75,7 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel,error) 
 			}
 			queryOptions := &consulapi.QueryOptions{WaitIndex: r.WaitIndex }
 			_, meta, err := catalog.Service(si.Name,"", queryOptions)
+			glog.V(10).Infof("Change has occurred on service: %s, index: %d", si, r.WaitIndex )
 			if err != nil {
 				glog.Errorf("Failed to wait for service to change, error: %s", err)
 				r.WaitIndex = 0
@@ -84,7 +85,6 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel,error) 
 					continue
 				}
 				r.WaitIndex = meta.LastIndex
-				glog.V(8).Infof("Last wait index for consul, service: %s, index: %s", si, r.WaitIndex )
 				var event EndpointEvent
 				event.ID = si.Name
 				event.Action = ENDPOINT_CHANGED
@@ -98,7 +98,7 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel,error) 
 func (r *ConsulClient) List(si *services.Service) ([]Endpoint, error) {
 	glog.V(5).Infof("Retrieving a list of the endpoints for service: %s", si )
 	catalog := r.Client.Catalog()
-	services, _, err := catalog.Service(si.Name,"", &consulapi.QueryOptions{WaitIndex: r.WaitIndex})
+	services, _, err := catalog.Service(si.Name,"", &consulapi.QueryOptions{})
 	if err != nil {
 		glog.Errorf("Failed to retrieve a list of services for service: %s", si )
 		return nil, err

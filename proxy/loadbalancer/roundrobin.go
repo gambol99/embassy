@@ -50,6 +50,8 @@ func (lb *LoadBalancerRR) SelectEndpoint(endpoints []endpoints.Endpoint) (endpoi
 func (lb *LoadBalancerRR) UpdateEndpoints(endpoints []endpoints.Endpoint) {
 	glog.V(2).Infof("lb (rr) : updating the endpoints")
 	if len(endpoints) > 0 {
+		lb.Lock()
+		defer lb.Unlock()
 		lb.NextEndpointIndex = 0
 	}
 }
