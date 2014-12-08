@@ -162,15 +162,13 @@ func (px *ProxyStore) ProxyConnections() error {
 				/* step: find the service proxy responsible for handling this service */
 				if proxier, found := px.LookupProxierByProxyID(proxyId); found {
 					/* step: handle the connection in the proxier */
-					go func() {
-						if err := proxier.HandleTCPConnection(connection); err != nil {
-							glog.Errorf("Failed to handle the connection: %s, proxyid: %s, error: %s", connection.RemoteAddr(),
-								proxyId, err)
-							if err := connection.Close(); err != nil {
-								glog.Errorf("Failed to close the connection connection: %s, error: %s", connection.RemoteAddr(), err)
-							}
+					if err := proxier.HandleTCPConnection(connection); err != nil {
+						glog.Errorf("Failed to handle the connection: %s, proxyid: %s, error: %s", connection.RemoteAddr(),
+							proxyId, err)
+						if err := connection.Close(); err != nil {
+							glog.Errorf("Failed to close the connection connection: %s, error: %s", connection.RemoteAddr(), err)
 						}
-					}()
+					}
 				} else {
 					glog.Errorf("Failed to handle service, we do not have a proxier for: %s", proxyId)
 					connection.Close()
