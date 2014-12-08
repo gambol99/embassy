@@ -209,6 +209,10 @@ func (px *ProxyStore) LookupProxierByServiceId(id services.ServiceID) (ServicePr
 }
 
 func (px *ProxyStore) LookupProxierByProxyID(id ProxyID) (proxy ServiceProxy, found bool) {
+	/*
+		TODO: this lock costs alot on connections per second, we lose on average 20
+    	sure how to get around this given it's shared across goroutines
+    */
 	px.RLock()
 	defer px.RUnlock()
 	proxy, found = px.Proxies[id]
@@ -221,13 +225,11 @@ func (px *ProxyStore) CreateServiceProxy(si services.Service) error {
 	/* step: check if a service proxy already exists */
 	px.Lock()
 	defer px.Unlock()
-	/*
 	if proxy, found := px.LookupProxierByServiceId(si.ID); found {
 		// the proxy service already exists, we simply map a proxyID -> ProxyService
 		glog.V(3).Infof("A proxy service already exists for service: %s, mapping new proxy id: %s", si, proxyID )
 		px.AddServiceProxy(proxyID, proxy )
 	} else {
-	*/
 		glog.Infof("Creating new proxy service for service: %s, consumer", si, proxyID )
 		proxy, err := NewServiceProxy(si, px.Config.DiscoveryURI )
 		if err != nil {
@@ -236,7 +238,7 @@ func (px *ProxyStore) CreateServiceProxy(si services.Service) error {
 		}
 		/* step; add the new proxier to the collection */
 		px.AddServiceProxy(proxyID, proxy)
-	//}
+	}
 	return nil
 }
 
