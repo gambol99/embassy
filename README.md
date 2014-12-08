@@ -126,5 +126,13 @@ Discovery will then read these and produce an endpoint of 192.168.13.90:49161
 
 Consul Notes
 -------------
-Provider still needs to be completed
 
+The consul agent watches for changes on services; the manner in which you get the services registered once again is up to you, though take a look at [registrator](https://github.com/progrium/registrator) if you've not got something in place already.
+
+	$ ./embassy -interface eth0 -discovery 'consul://HOST:8500' -v=3 -p=9999
+	# (assuming registrator and a consul cluster is already at hand)
+	$ docker run -d -P -e SERVICE_80_NAME=frontend_http eboraas/apache
+	# linking the backend
+	$ docker run -ti --rm -e BACKEND_APACHE_80='frontend_http;80' centos /bin/bash
+	[e6d41829bd76] $ curl 172.17.42.1
+	
