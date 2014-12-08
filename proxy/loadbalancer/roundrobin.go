@@ -34,11 +34,11 @@ func NewLoadBalancerRR() LoadBalancer {
 }
 
 func (lb *LoadBalancerRR) SelectEndpoint(endpoints []endpoints.Endpoint) (endpoints.Endpoint, error) {
-	lb.Lock()
-	defer lb.Unlock()
 	if len(endpoints) <= 0 {
 		return "", errors.New("The service does not have any endpoints")
 	}
+	lb.Lock()
+	defer lb.Unlock()
 	if lb.NextEndpointIndex > len(endpoints)-1 {
 		lb.NextEndpointIndex = 0
 	}
