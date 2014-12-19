@@ -17,9 +17,8 @@ limitations under the License.
 package proxy
 
 import (
+	"flag"
 	"net"
-	"sync"
-	"errors"
 	"fmt"
 	"syscall"
 	"strconv"
@@ -29,27 +28,67 @@ import (
 	"github.com/golang/glog"
 )
 
+const (
+	DEFAULT_PROXY_PORT     = 9999
+	DEFAULT_INTERFACE      = "eth0"
+	DEFAULT_DISCOVERY_URI  = "consul://127.0.0.1:8500"
+	DEFAULT_SERVICE_PREFIX = "BACKEND_"
+	DEFAULT_PROXY_GROUP_ID = 0
+	SO_ORIGINAL_DST 	   = 80
+)
+
+var (
+	discovery_url   = flag.String("discovery", DEFAULT_DISCOVERY_URI, "the discovery backend to pull the services from")
+	proxy_interface = flag.String("interface", DEFAULT_INTERFACE, "the interface to take the proxy address from")
+	proxy_port      = flag.Int("port", DEFAULT_PROXY_PORT, "the tcp port which the proxy should listen on")
+)
+
 type ProxyService interface {
 	Close()
 	Start() error
 }
 
 type ProxyStore struct {
-	sync.RWMutex
 	/* the tcp listener */
 	Listener net.Listener
 	/* a map of the proxy [source_ip+service_port] to the proxy service handler */
-	Proxies map[ProxyID]ServiceProxy
+	Services ServiceMap
 	/* channel for shutdown down */
 	Shutdown utils.ShutdownSignalChannel
-	/* service configuration */
-	Config Configuration
 	/* the services store */
-	Store services.ServiceStore
+	Store 	 services.ServiceStore
+}
+
+/*
+Create the proxy service - the main routine for handling requests and events
+ */
+func NewProxyService(store services.ServiceStore) (ProxyService, error) {
+	glog.Infof("Initializing the ProxyService" )
+
+	/* step: we need to grab the ip address of the interface to bind to */
+	ipaddress, err := utils.GetLocalIPAddress(*proxy_interface)
+	if err != nil {
+		glog.Error("Unable to get the local ip address from interface: %s, error: %s", *proxy_interface, err )
+		return nil, err
+	}
+	/* step: bind to the interface */
+	glog.Infof("Binding proxy service to interface: %s:%d", ipaddress, *proxy_port )
+	listener , err := net.Listen("tcp", fmt.Sprintf(":%d", *proxy_port ) )
+	if err != nil {
+		glog.Errorf("Failed to bind the proxy service to interface, error: %s", err)
+		return nil, err
+	}
+
+	/* step: build out the proxy service */
+	service := new(ProxyStore)
+	service.Store    = store
+	service.Services = NewProxyServices()
+	service.Shutdown = make(utils.ShutdownSignalChannel)
+	service.Listener = listener
+	return service, nil
 }
 
 /* --------------- Proxy ID ------------------- */
-
 type ProxyID string
 
 func (p *ProxyID) String() string {
@@ -78,6 +117,7 @@ func (px *ProxyStore) Start() error {
 	glog.V(5).Infof("Initializing the service discovery and starting to listen")
 	service_updates := make(services.ServiceEventsChannel, 10 )
 	defer close(service_updates)
+
 	px.Store.AddServiceListener(service_updates)
 	/* step: we need to start listening for services */
 	if err := px.Store.Start(); err != nil {
@@ -98,8 +138,8 @@ func (px *ProxyStore) Start() error {
 	for {
 		select {
 		case <-px.Shutdown:
-			glog.Infof("Received shutdown signal. Propagating the signal to the proxies: %d", len(px.Proxies))
-			for _, proxier := range px.Proxies {
+			glog.Infof("Received shutdown signal. Propagating the signal to the proxies: %d", px.Services.Size() )
+			for _, proxier := range px.Services.ListProxies() {
 				glog.Infof("Sending the kill signal to proxy: %s", proxier )
 				proxier.Close()
 			}
@@ -117,9 +157,9 @@ func (px *ProxyStore) Start() error {
 func (px *ProxyStore) ProcessServiceEvent(event *services.ServiceEvent) error {
 	/* check: is this a service request or down */
 	if event.IsServiceRequest() {
-		go px.CreateServiceProxy(event.Service)
+		go px.Services.CreateServiceProxy(event.Service)
 	} else if event.IsServiceRemoval() {
-		go px.DestroyServiceProxy(event.Service)
+		go px.Services.DestroyServiceProxy(event.Service)
 	}
 	return nil
 }
@@ -160,7 +200,7 @@ func (px *ProxyStore) ProxyConnections() error {
 				/* step: create a proxyId for this */
 				proxyId := GetProxyIDByConnection(source_ipaddress, original_port)
 				/* step: find the service proxy responsible for handling this service */
-				if proxier, found := px.LookupProxierByProxyID(proxyId); found {
+				if proxier, found := px.Services.LookupProxyByProxyID(proxyId); found {
 					/* step: handle the connection in the proxier */
 					if err := proxier.HandleTCPConnection(connection); err != nil {
 						glog.Errorf("Failed to handle the connection: %s, proxyid: %s, error: %s", connection.RemoteAddr(),
@@ -195,82 +235,4 @@ func (px *ProxyStore) GetOriginalPort(conn *net.TCPConn) (string, error) {
 	}
 	destination := uint16(addr.Multiaddr[2])<<8 + uint16(addr.Multiaddr[3])
 	return strconv.Itoa(int(destination)), nil
-}
-
-func (px *ProxyStore) LookupProxierByServiceId(id services.ServiceID) (ServiceProxy,bool) {
-	for _, service := range px.Proxies {
-		if service.GetService().ID == id {
-			glog.V(3).Infof("Found service proxy for service id: %s", id )
-			return service, true
-		}
-	}
-	glog.V(3).Infof("Proxy service does not exists for service id: %s", id )
-	return nil, false
-}
-
-func (px *ProxyStore) LookupProxierByProxyID(id ProxyID) (proxy ServiceProxy, found bool) {
-	/*
-		TODO: this lock costs alot on connections per second, we lose on average 20/30 %, though not
-    	sure how to work around this given it's shared across goroutines
-    */
-	px.RLock()
-	defer px.RUnlock()
-	proxy, found = px.Proxies[id]
-	return
-}
-
-func (px *ProxyStore) CreateServiceProxy(si services.Service) error {
-	/* step: get the proxy id for this service */
-	proxyID := GetProxyIDByService(&si)
-	/* step: check if a service proxy already exists */
-	px.Lock()
-	defer px.Unlock()
-	if proxy, found := px.LookupProxierByServiceId(si.ID); found {
-		// the proxy service already exists, we simply map a proxyID -> ProxyService
-		glog.V(3).Infof("A proxy service already exists for service: %s, mapping new proxy id: %s", si, proxyID )
-		px.AddServiceProxy(proxyID, proxy )
-	} else {
-		glog.Infof("Creating new proxy service for service: %s, consumer", si, proxyID )
-		proxy, err := NewServiceProxy(si, px.Config.DiscoveryURI )
-		if err != nil {
-			glog.Errorf("Unable to create proxier, service: %s, error: %s", si, err )
-			return err
-		}
-		/* step; add the new proxier to the collection */
-		px.AddServiceProxy(proxyID, proxy)
-	}
-	return nil
-}
-
-func (px *ProxyStore) DestroyServiceProxy(si services.Service) error {
-	/* step: get the proxy id for this service */
-	proxyID := GetProxyIDByService(&si)
-	px.Lock()
-	defer px.Unlock()
-	count := 0
-	for _, proxy := range px.Proxies {
-		if proxy.GetService().ID == si.ID {
-			count++
-		}
-	}
-	/* step: does we have multiple mappings */
-	if count == 0 {
-		glog.Errorf("Unable to find a service proxy for service: %s", si )
-		return errors.New("Service Proxy does not exists")
-	}
-	if count == 1 {
-		glog.Infof("Releasing the resources of service proxy, service: %s", si )
-		proxy, _ := px.Proxies[proxyID]
-		proxy.Close()
-	} else {
-		glog.Infof("Service proxy for service: %s has multiple mappings", si)
-	}
-	delete(px.Proxies, proxyID )
-	return nil
-}
-
-func (px *ProxyStore) AddServiceProxy(proxyID ProxyID, proxy ServiceProxy) {
-	glog.V(8).Infof("Adding Service Proxy, service: %s, service id: %s", proxy.GetService(), proxy.GetService().ID )
-	px.Proxies[proxyID] = proxy
-	glog.V(3).Infof("Added proxyId: %s to collection of service proxies, size: %d", proxyID, len(px.Proxies))
 }

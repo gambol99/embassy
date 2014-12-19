@@ -26,6 +26,11 @@ import (
 	"github.com/gambol99/embassy/proxy/services"
 )
 
+const (
+	DEFINITION_SERVICE_ADDED   = 0
+	DEFINITION_SERVICE_REMOVED = 1
+)
+
 /*
   SERVICE=<SERVICE_NAME>;<PORT>;
   BACKEND=etcd://localhost:4001
@@ -33,11 +38,6 @@ import (
   BACKEND_REDIS_MASTER=redis.master
   BACKEND_REDIS_MASTER=/services/prod/redis/master/6379/*;PORT;OPTION=VALUE,;
 */
-
-const (
-	DEFINITION_SERVICE_ADDED 	= 0
-	DEFINITION_SERVICE_REMOVED = 1
-)
 
 type DefinitionOperation int
 

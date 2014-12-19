@@ -18,8 +18,8 @@ package main
 import (
 	"runtime"
 	"os"
+	"flag"
 
-	"github.com/gambol99/embassy/cli"
 	"github.com/gambol99/embassy/store"
 	"github.com/gambol99/embassy/proxy"
 	"github.com/golang/glog"
@@ -27,7 +27,7 @@ import (
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	config := cli.ParseOptions()
+	flag.Parse()
 
 	glog.Infof("Starting the Embassy Docker Service Proxy, version: %s", Version )
 	/* step: create the services store */
@@ -38,7 +38,7 @@ func main() {
 		os.Exit(1)
 	}
 	/* step: create the proxy service */
-	service, err := proxy.NewProxyService(config, services)
+	service, err := proxy.NewProxyService(services)
 	if err != nil {
 		glog.Errorf("Failed to create the proxy service, error: %s", err)
 		return

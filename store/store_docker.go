@@ -25,6 +25,7 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/golang/glog"
+	"strconv"
 )
 
 const (
@@ -35,14 +36,17 @@ const (
 	DOCKER_CONTAINER_PREFIX = "container:"
 	DEFAULT_DOCKER_SOCKET   = "unix://var/run/docker.sock"
 	DEFAULT_BACKEND_PREFIX  = "BACKEND_"
+	DEFAULT_PROXY_GROUP_ID  = 0
 )
 
 var (
-	cfg_docker_socket *string
+	docker_socket *string
+	proxy_groupId *int
 )
 
 func init() {
-	cfg_docker_socket = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
+	docker_socket = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
+	proxy_groupId = flag.Int("id", DEFAULT_PROXY_GROUP_ID, "the proxy group id which the proxy is responsible for" )
 }
 
 type DockerServiceStore struct {
@@ -83,11 +87,10 @@ func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent,bool) {
 
 func NewDockerServiceStore() (ServiceProvider, error) {
 	/* step: we create a docker client */
-	socket := *cfg_docker_socket
-	glog.V(3).Infof("Creating docker client api, socket: %s", socket )
+	glog.V(3).Infof("Creating docker client api, socket: %s", *docker_socket )
 
 	/* step: create a docker client */
-	client, err := docker.NewClient(socket)
+	client, err := docker.NewClient(*docker_socket)
 	if err != nil {
 		glog.Errorf("Unable to create a docker client, error: %s", err)
 		return nil, err
@@ -117,9 +120,9 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 			case event := <-dockerEvents:
 				glog.V(4).Infof("Received docker event status: %s, id: %s", event.Status, event.ID )
 				if event.Status == DOCKER_START {
-					go r.ProcessDockerCreation(event.ID,channel)
+					r.ProcessDockerCreation(event.ID,channel)
 				} else if event.Status == DOCKER_DESTROY {
-					go r.ProcessDockerDestroy(event.ID, channel)
+					r.ProcessDockerDestroy(event.ID, channel)
 				}
 			}
 		}
@@ -210,6 +213,7 @@ func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Def
 
 	/* step; scan the runtime variables for backend links */
 	for key, value := range environment {
+		/* step: if we */
 		if r.IsBackendService(key) {
 			glog.V(2).Infof("Found backend request in container: %s, service: %s", containerID, value)
 			/* step: create a backend definition and append to list */
@@ -257,6 +261,19 @@ func (r DockerServiceStore) GetContainerIPAddress(container *docker.Container) (
 			return "", errors.New("Failed to retrieve the ip address of the container, doesn't appear to have one")
 		}
 	}
+}
+
+func (r DockerServiceStore) IsProxyGroupID(key, value string) (id int, err error) {
+	if found := strings.HasPrefix(key, "PROXY_GROUP_ID"); found {
+		/* step: convert the value to an integer */
+		if proxyId, err := strconv.Atoi(value); err != nil {
+			glog.Errorf("Unable to convert the proxy group id: %s, error: %s", value, err )
+			return 0, err
+		} else {
+			return proxyId, nil
+		}
+	}
+	return 0, nil
 }
 
 func (r DockerServiceStore) IsBackendService(key string) (found bool) {
