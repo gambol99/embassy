@@ -9,12 +9,12 @@
 		},
 		{
 			"ImportPath": "github.com/armon/consul-api",
-			"Rev": "1b81c8e0c4cbf1d382310e4c0dc11221632e79d1"
+			"Rev": "74cc5bab614dfecd6fe4ee5975b6ac97d2abc672"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
-			"Comment": "v0.2.0-rc1-114-g7745cfd",
-			"Rev": "7745cfd7f8e619cc9e6be450238e6253a57a227f"
+			"Comment": "v0.2.0-rc1-127-g6fe04d5",
+			"Rev": "6fe04d580dfb71c9e34cbce2f4df9eefd1e1241e"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/archive",
@@ -58,8 +58,7 @@
 		},
 		{
 			"ImportPath": "github.com/fsouza/go-dockerclient",
-			"Comment": "0.2.1-336-g77d44de",
-			"Rev": "77d44de354d4cb20ad5b03a9e118dc203e59095b"
+			"Rev": "b52383442df766febf51f9f858ee311f69a2f264"
 		},
 		{
 			"ImportPath": "github.com/golang/glog",
