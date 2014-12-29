@@ -27,6 +27,10 @@ const (
 
 type Operation int
 
+func (r *Operation) String() string {
+	return fmt.Sprintf("%d",*r)
+}
+
 type ServiceEvent struct {
 	/* the operation type - adding or removing a service */
 	Action Operation

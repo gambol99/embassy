@@ -11,7 +11,7 @@ HARDWARE=$(shell uname -m)
 VERSION=0.0.1
 
 build:
-	go build -o stage/embassy
+	godep go build -o stage/embassy
 	docker build -t ${AUTHOR}/${NAME} .
 
 clean:

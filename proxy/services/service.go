@@ -43,5 +43,5 @@ func (s Service) IsValid() error {
 }
 
 func (s Service) String() string {
-	return fmt.Sprintf("name: %s:%s, ip: %s", s.Name, s.Port, s.Consumer)
+	return fmt.Sprintf("name: %s:%d, ip: %s", s.Name, s.Port, s.Consumer)
 }

@@ -88,7 +88,7 @@ func (ds *EndpointsStoreService) PushEventToListeners(event EndpointEvent) {
 }
 
 func (ds EndpointsStoreService) Close() {
-	glog.Infof("Shutting down the Endpoints Store")
+	glog.Infof("Shutting down the endpoints store for service: %s", ds.Service )
 	ds.Shutdown <- true
 }
 
