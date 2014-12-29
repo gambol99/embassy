@@ -8,23 +8,34 @@
 NAME=embassy
 AUTHOR=gambol99
 HARDWARE=$(shell uname -m)
-VERSION=0.0.1
+VERSION=$(shell awk '/const Version/ { print $$4 }' version.go | sed 's/"//g')
+REPOSITORY=embassy
+
 
 build:
+	go get github.com/tools/godep
 	godep go build -o stage/embassy
 	docker build -t ${AUTHOR}/${NAME} .
 
 clean:
 	rm -f ./stage/embassy
+	rm -rf ./release
 	go clean
 
 release:
 	rm -rf release
-	mkdir release
-	GOOS=linux go build -o release/$(NAME)
-	cd release && tar -zcf $(NAME)_$(VERSION)_linux_$(HARDWARE).tgz $(NAME)
-	GOOS=darwin go build -o release/$(NAME)
-	cd release && tar -zcf $(NAME)_$(VERSION)_darwin_$(HARDWARE).tgz $(NAME)
+	mkdir -p release
+	GOOS=linux godep go build -o release/$(NAME)
+	cd release && gzip -c embassy > $(NAME)_$(VERSION)_linux_$(HARDWARE).gz
+	GOOS=darwin godep go build -o release/$(NAME)
+	cd release && gzip -c embassy > $(NAME)_$(VERSION)_darwin_$(HARDWARE).gz
 	rm release/$(NAME)
+	# create the changelog
+	git log $(shell git tag | tail -n1)..HEAD --oneline --decorate > release/CHANGELOG
+	# git tag $VERSION
+	# git push --tags
+	# github-release release -r $(REPOSITORY) --tag $(VERSION) -p -d $(shell cat release/CHANGELOG)
+	# github-release upload -r $(REPOSITORY) --tag $(VERSION) release/$(NAME)_$(VERSION)_darwin_$(HARDWARE).gz
+	# github-release upload -r $(REPOSITORY) --tag $(VERSION) release/$(NAME)_$(VERSION)_linux_$(HARDWARE).gz
 
-.PHONY: build
+.PHONY: build release
