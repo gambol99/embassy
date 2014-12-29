@@ -76,7 +76,7 @@ func (r *ProxyServiceMap) CreateServiceProxy(si services.Service) error {
 		r.AddServiceProxy(proxyID, proxy)
 	} else {
 		/* step: we need to create a new service proxy for this service */
-		glog.Infof("Creating new service proxy for service: %s, consumer", si, proxyID )
+		glog.Infof("Creating new service proxy for service: %s, consumer: %s", si, proxyID )
 		proxy, err := NewServiceProxy(si)
 		if err != nil {
 			glog.Errorf("Unable to create proxier, service: %s, error: %s", si, err )
