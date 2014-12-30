@@ -17,32 +17,32 @@ limitations under the License.
 package endpoints
 
 import (
-	"net/url"
 	"errors"
+	"net/url"
 
-	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/proxy/services"
+	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
 func NewEndpointsService(discovery string, si services.Service) (EndpointsStore, error) {
 	/* step: check the cache first of all */
-	glog.Infof("Initializing endpoints store for service: %s", si )
+	glog.Infof("Initializing endpoints store for service: %s", si)
 	/* step: check if the store provider is supported */
 	endpoints := new(EndpointsStoreService)
 	endpoints.Service = si
 	endpoints.Endpoints = make([]Endpoint, 0)
-	endpoints.Listeners = make([]EndpointEventChannel,0)
+	endpoints.Listeners = make([]EndpointEventChannel, 0)
 	endpoints.Shutdown = make(utils.ShutdownSignalChannel)
 
 	/* step: create the backend provider */
 
 	uri, err := url.Parse(discovery)
 	if err != nil {
-		glog.Errorf("Failed to parse the discovery url: %s, error: %s", discovery, err )
+		glog.Errorf("Failed to parse the discovery url: %s, error: %s", discovery, err)
 		return nil, err
 	}
-	glog.Infof("Using endpoints agent: %s, discovery uri: %s", uri.Scheme, discovery )
+	glog.Infof("Using endpoints agent: %s, discovery uri: %s", uri.Scheme, discovery)
 	var provider EndpointsProvider
 	switch uri.Scheme {
 	case "etcd":
@@ -50,14 +50,14 @@ func NewEndpointsService(discovery string, si services.Service) (EndpointsStore,
 	case "consul":
 		provider, err = NewConsulClent(discovery)
 	default:
-		glog.Errorf("Failed to create endpoints agent, the backend: %s is not supported", discovery )
-		return nil, errors.New("Unsupported backend " + discovery )
+		glog.Errorf("Failed to create endpoints agent, the backend: %s is not supported", discovery)
+		return nil, errors.New("Unsupported backend " + discovery)
 	}
 	if err != nil {
-		glog.Errorf("Failed to initialize the endpoint: %s, error: %s", discovery, err )
+		glog.Errorf("Failed to initialize the endpoint: %s, error: %s", discovery, err)
 		return nil, err
 	}
-	glog.V(5).Infof("Succesfully initialize the endpoints %s", discovery )
+	glog.V(5).Infof("Succesfully initialize the endpoints %s", discovery)
 	endpoints.Provider = provider
 	return endpoints, nil
 }

@@ -22,8 +22,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/proxy/services"
+	"github.com/gambol99/embassy/utils"
 )
 
 const (
@@ -43,7 +43,7 @@ type DefinitionOperation int
 
 type DefinitionEvent struct {
 	SourceAddress, Name, Definition string
-	Operation DefinitionOperation
+	Operation                       DefinitionOperation
 }
 
 var (
@@ -57,7 +57,7 @@ func (b DefinitionEvent) IsValid() bool {
 }
 
 func (b DefinitionEvent) String() string {
-	return fmt.Sprintf("definition: %s|%s : %s operation: %d ", b.SourceAddress, b.Name, b.Definition, b.Operation )
+	return fmt.Sprintf("definition: %s|%s : %s operation: %d ", b.SourceAddress, b.Name, b.Definition, b.Operation)
 }
 
 /* /services/prod/redis/master/6379/*;PORT;OPTION=VALUE */

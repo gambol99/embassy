@@ -21,14 +21,14 @@ import (
 )
 
 const (
-	SERVICE_REQUEST	= 1 << iota
+	SERVICE_REQUEST = 1 << iota
 	SERVICE_REMOVAL
 )
 
 type Operation int
 
 func (r *Operation) String() string {
-	return fmt.Sprintf("%d",*r)
+	return fmt.Sprintf("%d", *r)
 }
 
 type ServiceEvent struct {
@@ -39,7 +39,7 @@ type ServiceEvent struct {
 }
 
 func (r ServiceEvent) String() string {
-	return fmt.Sprintf("action: %s, service: %s", r.Action, r.Service )
+	return fmt.Sprintf("action: %s, service: %s", r.Action, r.Service)
 }
 
 func (r ServiceEvent) IsServiceRequest() bool {

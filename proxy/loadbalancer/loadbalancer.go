@@ -19,9 +19,10 @@ package loadbalancer
 import (
 	"errors"
 
-	"github.com/golang/glog"
 	"github.com/gambol99/embassy/proxy/endpoints"
+	"github.com/golang/glog"
 )
+
 const (
 	DEFAULT_BALANCER = "rr"
 )

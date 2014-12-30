@@ -17,8 +17,8 @@ limitations under the License.
 package store
 
 import (
-	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/proxy/services"
+	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 

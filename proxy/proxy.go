@@ -18,10 +18,10 @@ package proxy
 
 import (
 	"flag"
-	"net"
 	"fmt"
-	"syscall"
+	"net"
 	"strconv"
+	"syscall"
 
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
@@ -34,7 +34,7 @@ const (
 	DEFAULT_DISCOVERY_URI  = "consul://127.0.0.1:8500"
 	DEFAULT_SERVICE_PREFIX = "BACKEND_"
 	DEFAULT_PROXY_GROUP_ID = 0
-	SO_ORIGINAL_DST 	   = 80
+	SO_ORIGINAL_DST        = 80
 )
 
 var (
@@ -56,24 +56,24 @@ type ProxyStore struct {
 	/* channel for shutdown down */
 	Shutdown utils.ShutdownSignalChannel
 	/* the services store */
-	Store 	 services.ServiceStore
+	Store services.ServiceStore
 }
 
 /*
 Create the proxy service - the main routine for handling requests and events
- */
+*/
 func NewProxyService(store services.ServiceStore) (ProxyService, error) {
-	glog.Infof("Initializing the ProxyService" )
+	glog.Infof("Initializing the ProxyService")
 
 	/* step: we need to grab the ip address of the interface to bind to */
 	ipaddress, err := utils.GetLocalIPAddress(*proxy_interface)
 	if err != nil {
-		glog.Error("Unable to get the local ip address from interface: %s, error: %s", *proxy_interface, err )
+		glog.Error("Unable to get the local ip address from interface: %s, error: %s", *proxy_interface, err)
 		return nil, err
 	}
 	/* step: bind to the interface */
-	glog.Infof("Binding proxy service to interface: %s:%d", ipaddress, *proxy_port )
-	listener , err := net.Listen("tcp", fmt.Sprintf(":%d", *proxy_port ) )
+	glog.Infof("Binding proxy service to interface: %s:%d", ipaddress, *proxy_port)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", *proxy_port))
 	if err != nil {
 		glog.Errorf("Failed to bind the proxy service to interface, error: %s", err)
 		return nil, err
@@ -81,7 +81,7 @@ func NewProxyService(store services.ServiceStore) (ProxyService, error) {
 
 	/* step: build out the proxy service */
 	service := new(ProxyStore)
-	service.Store    = store
+	service.Store = store
 	service.Services = NewProxyServices()
 	service.Shutdown = make(utils.ShutdownSignalChannel)
 	service.Listener = listener
@@ -92,7 +92,7 @@ func NewProxyService(store services.ServiceStore) (ProxyService, error) {
 type ProxyID string
 
 func (p *ProxyID) String() string {
-	return fmt.Sprintf("proxyId: %s", *p )
+	return fmt.Sprintf("proxyId: %s", *p)
 }
 
 func GetProxyIDByConnection(source, port string) ProxyID {
@@ -115,13 +115,13 @@ func (px *ProxyStore) Start() error {
 
 	/* step: add ourselves us a listener to service events */
 	glog.V(5).Infof("Initializing the service discovery and starting to listen")
-	service_updates := make(services.ServiceEventsChannel, 10 )
+	service_updates := make(services.ServiceEventsChannel, 10)
 	defer close(service_updates)
 
 	px.Store.AddServiceListener(service_updates)
 	/* step: we need to start listening for services */
 	if err := px.Store.Start(); err != nil {
-		glog.Errorf("Failed to start the service discovery subsystem, error: %s", err )
+		glog.Errorf("Failed to start the service discovery subsystem, error: %s", err)
 		return err
 	}
 
@@ -132,22 +132,22 @@ func (px *ProxyStore) Start() error {
 	}
 
 	/* step: the main event loop for the proxy service;
-		- listening for service events
-		- listening for shutdown requests
-	 */
+	- listening for service events
+	- listening for shutdown requests
+	*/
 	for {
 		select {
 		case <-px.Shutdown:
-			glog.Infof("Received shutdown signal. Propagating the signal to the proxies: %d", px.Services.Size() )
+			glog.Infof("Received shutdown signal. Propagating the signal to the proxies: %d", px.Services.Size())
 			for _, proxier := range px.Services.ListProxies() {
-				glog.Infof("Sending the kill signal to proxy: %s", proxier )
+				glog.Infof("Sending the kill signal to proxy: %s", proxier)
 				proxier.Close()
 			}
 		case event := <-service_updates:
-			glog.Infof("ProxyService recieved service update, service: %s, action: %s", event.Service, event.Action )
+			glog.Infof("ProxyService recieved service update, service: %s, action: %s", event.Service, event.Action)
 			/* step: check if the service is already being processed */
 			if err := px.ProcessServiceEvent(&event); err != nil {
-				glog.Errorf("Unable to process the service request: %s, error: %s", event.Service, err )
+				glog.Errorf("Unable to process the service request: %s, error: %s", event.Service, err)
 			}
 		}
 	}
@@ -171,7 +171,7 @@ func (px *ProxyStore) ProcessServiceEvent(event *services.ServiceEvent) error {
 - Pass the connection to the in a go handler
 */
 func (px *ProxyStore) ProxyConnections() error {
-	glog.V(5).Infof("Starting to listen for incoming connections" )
+	glog.V(5).Infof("Starting to listen for incoming connections")
 	go func() {
 		for {
 			/* wait for a connection */
@@ -221,7 +221,7 @@ func (px *ProxyStore) ProxyConnections() error {
 
 /*
 Derive the original port from the tcp header
- */
+*/
 func (px *ProxyStore) GetOriginalPort(conn *net.TCPConn) (string, error) {
 	descriptor, err := conn.File()
 	if err != nil {

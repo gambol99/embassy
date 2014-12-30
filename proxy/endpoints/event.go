@@ -18,7 +18,7 @@ package endpoints
 
 import (
 	"fmt"
-	
+
 	"github.com/gambol99/embassy/proxy/services"
 )
 
@@ -31,15 +31,15 @@ const (
 
 /*
 The event which is sent to the listeners
- */
+*/
 type EndpointEvent struct {
-	ID       string
-	Action   Operation
-	Service  services.Service
+	ID      string
+	Action  Operation
+	Service services.Service
 }
 
 func (r EndpointEvent) String() string {
-	return fmt.Sprintf("id: %s, action: %s, service: %s", r.ID, r.Action, r.Service )
+	return fmt.Sprintf("id: %s, action: %s, service: %s", r.ID, r.Action, r.Service)
 }
 
 func (r EndpointEvent) IsChanged() bool {
