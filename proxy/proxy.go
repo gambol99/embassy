@@ -56,7 +56,7 @@ type ProxyStore struct {
 	/* channel for shutdown down */
 	Shutdown utils.ShutdownSignalChannel
 	/* the services store */
-	Store services.ServiceStore
+	Store 	 services.ServiceStore
 }
 
 /*
