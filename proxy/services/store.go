@@ -19,12 +19,12 @@ package services
 /*
 the channel is used by the service store to send service requests and removal
 from over to the proxy service
- */
+*/
 type ServiceEventsChannel chan ServiceEvent
 
 /*
 the services store only has to implement the following
- */
+*/
 type ServiceStore interface {
 	/* close the services store */
 	Close()

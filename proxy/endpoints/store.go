@@ -60,7 +60,7 @@ type EndpointsStoreService struct {
 }
 
 func (r *EndpointsStoreService) AddEventListener(channel EndpointEventChannel) {
-	glog.V(5).Infof("Adding listener for endpoint events, channel: %V", channel )
+	glog.V(5).Infof("Adding listener for endpoint events, channel: %V", channel)
 	r.Listeners = append(r.Listeners, channel)
 }
 
@@ -72,7 +72,7 @@ func (ds *EndpointsStoreService) ListEndpoints() (endpoints []Endpoint, err erro
 }
 
 func (ds *EndpointsStoreService) PushEventToListeners(event EndpointEvent) {
-	glog.V(3).Infof("Pushing the event: %s to all listeners", event )
+	glog.V(3).Infof("Pushing the event: %s to all listeners", event)
 
 	/* create the event for us and wrap the service */
 	event.Service = ds.Service
@@ -81,14 +81,14 @@ func (ds *EndpointsStoreService) PushEventToListeners(event EndpointEvent) {
 	for _, listener := range ds.Listeners {
 		/* step: we run this in a go-routine not to block */
 		go func() {
-			glog.V(12).Infof("Pushing the event: %s to listener: %v", event, listener )
+			glog.V(12).Infof("Pushing the event: %s to listener: %v", event, listener)
 			listener <- event
 		}()
 	}
 }
 
 func (ds EndpointsStoreService) Close() {
-	glog.Infof("Shutting down the endpoints store for service: %s", ds.Service )
+	glog.Infof("Shutting down the endpoints store for service: %s", ds.Service)
 	ds.Shutdown <- true
 }
 
@@ -113,23 +113,23 @@ func (ds *EndpointsStoreService) WatchEndpoints() {
 	go func() {
 		/* Never say die ! unless they tell us to */
 		for {
-			glog.V(4).Infof("Starting to watch endpoints for service: %s, path: %s", ds.Service, ds.Service.Name )
+			glog.V(4).Infof("Starting to watch endpoints for service: %s, path: %s", ds.Service, ds.Service.Name)
 			watchChannel, err := ds.Provider.Watch(&ds.Service)
 			if err != nil {
-				glog.Errorf("Unable to start the watcher for service: %s, error: %s", ds.Service, err )
+				glog.Errorf("Unable to start the watcher for service: %s, error: %s", ds.Service, err)
 				return
 			}
 			/* step: we simply wait for updates from the watcher or an kill switch */
 			for {
 				select {
 				case update := <-watchChannel:
-					glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service )
+					glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service)
 					/* step: update our endpoints */
 					ds.Synchronize()
 					/* step: push the event to the listeners */
 					go ds.PushEventToListeners(update)
 				case <-ds.Shutdown:
-					glog.Infof("Shutting down the provider for service: %s", ds.Service )
+					glog.Infof("Shutting down the provider for service: %s", ds.Service)
 					/* step: push downstream the kill signal to provider */
 					ds.Provider.Close()
 					return
@@ -138,5 +138,3 @@ func (ds *EndpointsStoreService) WatchEndpoints() {
 		}
 	}()
 }
-
-

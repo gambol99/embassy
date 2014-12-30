@@ -53,8 +53,8 @@ type Proxier struct {
 	Shutdown utils.ShutdownSignalChannel
 }
 
-func NewServiceProxy(si services.Service) (ServiceProxy,error) {
-	glog.Infof("Initializing a new service proxy for service: %s, discovery: %s", si, *discovery_url )
+func NewServiceProxy(si services.Service) (ServiceProxy, error) {
+	glog.Infof("Initializing a new service proxy for service: %s, discovery: %s", si, *discovery_url)
 	/* step: creating the service proxy */
 	proxy := new(Proxier)
 	proxy.Service = si

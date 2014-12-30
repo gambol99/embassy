@@ -16,12 +16,12 @@ limitations under the License.
 package main
 
 import (
-	"runtime"
-	"os"
 	"flag"
+	"os"
+	"runtime"
 
-	"github.com/gambol99/embassy/store"
 	"github.com/gambol99/embassy/proxy"
+	"github.com/gambol99/embassy/store"
 	"github.com/golang/glog"
 )
 
@@ -29,12 +29,12 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	glog.Infof("Starting the Embassy Docker Service Proxy, version: %s", Version )
+	glog.Infof("Starting the Embassy Docker Service Proxy, version: %s", Version)
 	/* step: create the services store */
 	services := store.NewServiceStore()
 	/* step: we use the default docker store for now */
-	if err := store.AddDockerServiceStore( services ); err != nil {
-		glog.Errorf("Failed to add the docker service provider, error: %s", err )
+	if err := store.AddDockerServiceStore(services); err != nil {
+		glog.Errorf("Failed to add the docker service provider, error: %s", err)
 		os.Exit(1)
 	}
 	/* step: create the proxy service */

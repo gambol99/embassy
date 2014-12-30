@@ -18,10 +18,10 @@ package store
 
 import (
 	"errors"
+	"flag"
 	"regexp"
 	"strings"
 	"sync"
-	"flag"
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/golang/glog"
@@ -46,7 +46,7 @@ var (
 
 func init() {
 	docker_socket = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
-	proxy_groupId = flag.Int("id", DEFAULT_PROXY_GROUP_ID, "the proxy group id which the proxy is responsible for" )
+	proxy_groupId = flag.Int("id", DEFAULT_PROXY_GROUP_ID, "the proxy group id which the proxy is responsible for")
 }
 
 type DockerServiceStore struct {
@@ -73,10 +73,10 @@ func (r *ServiceMap) Add(containerID string, definitions []DefinitionEvent) {
 func (r *ServiceMap) Remove(containerID string) {
 	r.Lock()
 	defer r.Unlock()
-	delete(r.Services, containerID )
+	delete(r.Services, containerID)
 }
 
-func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent,bool) {
+func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent, bool) {
 	r.RLock()
 	defer r.RUnlock()
 	if definitions, found := r.Services[containerId]; found {
@@ -87,7 +87,7 @@ func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent,bool) {
 
 func NewDockerServiceStore() (ServiceProvider, error) {
 	/* step: we create a docker client */
-	glog.V(3).Infof("Creating docker client api, socket: %s", *docker_socket )
+	glog.V(3).Infof("Creating docker client api, socket: %s", *docker_socket)
 
 	/* step: create a docker client */
 	client, err := docker.NewClient(*docker_socket)
@@ -101,13 +101,13 @@ func NewDockerServiceStore() (ServiceProvider, error) {
 }
 
 func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error {
-	glog.V(6).Infof("Starting the docker backend service discovery stream" )
+	glog.V(6).Infof("Starting the docker backend service discovery stream")
 	/* step: before we stream the services take the time to lookup for containers already running and find the links */
 	r.LookupRunningContainers(channel)
 
 	go func() {
 		/* channel to receive events */
-		dockerEvents := make(chan *docker.APIEvents,10)
+		dockerEvents := make(chan *docker.APIEvents, 10)
 		/* step: add our channel as an event listener for docker events */
 		if err := r.Docker.AddEventListener(dockerEvents); err != nil {
 			glog.Errorf("Unable to register docker events listener, error: %s", err)
@@ -118,15 +118,15 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 		for {
 			select {
 			case event := <-dockerEvents:
-				glog.V(4).Infof("Received docker event status: %s, id: %s", event.Status, event.ID )
+				glog.V(4).Infof("Received docker event status: %s, id: %s", event.Status, event.ID)
 				if event.Status == DOCKER_START {
-					r.ProcessDockerCreation(event.ID,channel)
+					r.ProcessDockerCreation(event.ID, channel)
 				} else if event.Status == DOCKER_DESTROY {
 					r.ProcessDockerDestroy(event.ID, channel)
 				}
 			}
 		}
-		glog.Errorf("Exitting the docker services stream" )
+		glog.Errorf("Exitting the docker services stream")
 	}()
 	return nil
 }
@@ -136,7 +136,7 @@ func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChann
 	if containers, err := r.Docker.ListContainers(docker.ListContainersOptions{}); err == nil {
 		/* step: iterate the containers and look for services */
 		for _, container := range containers {
-			go r.ProcessDockerCreation(container.ID,channel)
+			go r.ProcessDockerCreation(container.ID, channel)
 		}
 	} else {
 		glog.Errorf("Failed to list the currently running container, error: %s", err)
@@ -152,31 +152,31 @@ func (r *DockerServiceStore) ProcessDockerCreation(containerID string, channel B
 		glog.Errorf("Unable to inspect container: %s for services, error: %s", containerID[:12], err)
 		return err
 	}
-	glog.V(4).Infof("Container: %s, services found: %d", containerID[:12], len(definitions) )
+	glog.V(4).Infof("Container: %s, services found: %d", containerID[:12], len(definitions))
 	/* step: add the container to the service map */
-	r.Add(containerID, definitions )
+	r.Add(containerID, definitions)
 	/* step: push the service */
-	r.PushServices(channel, definitions, DEFINITION_SERVICE_ADDED )
+	r.PushServices(channel, definitions, DEFINITION_SERVICE_ADDED)
 	glog.V(4).Infof("Successfully added services from container: %s", containerID[:12])
 	return nil
 }
 
 func (r *DockerServiceStore) ProcessDockerDestroy(containerID string, channel BackendServiceChannel) error {
-	glog.V(4).Infof("Docker destruction event, container: %s", containerID[:12] )
+	glog.V(4).Infof("Docker destruction event, container: %s", containerID[:12])
 	if definitions, found := r.Has(containerID); found {
 		glog.V(4).Infof("Found %d definitions for container: %s", len(definitions), containerID[:12])
 		r.PushServices(channel, definitions, DEFINITION_SERVICE_REMOVED)
 		r.Remove(containerID)
 		glog.V(4).Infof("Successfully removed services from container: %s", containerID[:12])
 	} else {
-		glog.V(4).Infof("Failed to find any defintitions from container: %s", containerID[:12] )
+		glog.V(4).Infof("Failed to find any defintitions from container: %s", containerID[:12])
 	}
 	return nil
 }
 
 func (r *DockerServiceStore) PushServices(channel BackendServiceChannel, definitions []DefinitionEvent, operation DefinitionOperation) {
 	for _, definition := range definitions {
-		glog.V(3).Infof("Pushing service: %s to services store", definition )
+		glog.V(3).Infof("Pushing service: %s to services store", definition)
 		definition.Operation = operation
 		channel <- definition
 	}
@@ -267,7 +267,7 @@ func (r DockerServiceStore) IsProxyGroupID(key, value string) (id int, err error
 	if found := strings.HasPrefix(key, "PROXY_GROUP_ID"); found {
 		/* step: convert the value to an integer */
 		if proxyId, err := strconv.Atoi(value); err != nil {
-			glog.Errorf("Unable to convert the proxy group id: %s, error: %s", value, err )
+			glog.Errorf("Unable to convert the proxy group id: %s, error: %s", value, err)
 			return 0, err
 		} else {
 			return proxyId, nil

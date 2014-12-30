@@ -24,15 +24,15 @@ import (
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gambol99/embassy/utils"
 	"github.com/gambol99/embassy/proxy/services"
+	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
 type EtcdClient struct {
-	Client *etcd.Client
+	Client   *etcd.Client
 	Shutdown utils.ShutdownSignalChannel
-	KillOff bool
+	KillOff  bool
 }
 
 const (
@@ -40,11 +40,11 @@ const (
 )
 
 func NewEtcdStore(uri string) (EndpointsProvider, error) {
-	glog.V(3).Infof("Creating a Etcd client, hosts: %s", uri )
+	glog.V(3).Infof("Creating a Etcd client, hosts: %s", uri)
 	/* step: get the etcd nodes from the discovery uri */
 	return &EtcdClient{
 		etcd.NewClient(GetEtcdHosts(uri)),
-		make(utils.ShutdownSignalChannel),false}, nil
+		make(utils.ShutdownSignalChannel), false}, nil
 }
 
 func (r *EtcdClient) Close() {
@@ -55,14 +55,14 @@ func (r *EtcdClient) Close() {
 
 func (e *EtcdClient) Watch(si *services.Service) (updates EndpointEventChannel, err error) {
 	/* channel to send back events to the endpoints store */
-	endpointUpdateChannel := make(EndpointEventChannel,5)
+	endpointUpdateChannel := make(EndpointEventChannel, 5)
 	/* channel to receive events from the watcher */
 	endpointWatchChannel := make(chan *etcd.Response)
 	/* channel to close the watcher */
 	stopChannel := make(chan bool)
 	go func() {
 		/* step: start watching the endpoints */
-		go e.WaitForChanges(si.Name,endpointWatchChannel,stopChannel)
+		go e.WaitForChanges(si.Name, endpointWatchChannel, stopChannel)
 		/* step: we wait for events from the above */
 		for {
 			select {
@@ -75,7 +75,7 @@ func (e *EtcdClient) Watch(si *services.Service) (updates EndpointEventChannel, 
 				case "delete":
 					event.Action = ENDPOINT_REMOVED
 				default:
-					glog.Errorf("Unknown action recieved from etcd: %V", update )
+					glog.Errorf("Unknown action recieved from etcd: %V", update)
 					continue
 				}
 				/* send the event upstream to endpoints store */
@@ -92,11 +92,11 @@ func (e *EtcdClient) Watch(si *services.Service) (updates EndpointEventChannel, 
 
 func (r *EtcdClient) WaitForChanges(path string, updateChannel chan *etcd.Response, stopChannel chan bool) {
 	for {
-		glog.V(5).Infof("Waiting on endpoints for service path: %s to change", path )
-		response, err := r.Client.Watch(path, uint64(0), true, nil, stopChannel )
+		glog.V(5).Infof("Waiting on endpoints for service path: %s to change", path)
+		response, err := r.Client.Watch(path, uint64(0), true, nil, stopChannel)
 		if err != nil {
 			if r.KillOff {
-				glog.Infof("Quitting the watcher on service path: %s", path )
+				glog.Infof("Quitting the watcher on service path: %s", path)
 				return
 			} else {
 				glog.Errorf("Etcd client for service path: %s recieved an error: %s", path, err)
@@ -106,7 +106,7 @@ func (r *EtcdClient) WaitForChanges(path string, updateChannel chan *etcd.Respon
 		}
 		/* else we have a good response - lets check if it's a directory change */
 		if response.Node.Dir == false {
-			glog.V(7).Infof("Changed occured on path: %s", path )
+			glog.V(7).Infof("Changed occured on path: %s", path)
 			updateChannel <- response
 		}
 	}
@@ -141,7 +141,6 @@ func (e *EtcdClient) List(si *services.Service) ([]Endpoint, error) {
 	}
 	return list, nil
 }
-
 
 func (e *EtcdClient) Paths(path string, paths *[]string) ([]string, error) {
 	response, err := e.Client.Get(path, false, true)
@@ -209,4 +208,3 @@ func (e EtcdServiceDocument) IsValid() error {
 	}
 	return nil
 }
-

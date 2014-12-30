@@ -9,6 +9,7 @@
 *.a
 *.so
 embassy
+release/
 stage/embassy
 embassy.iml
 .idea/

@@ -17,11 +17,11 @@ limitations under the License.
 package proxy
 
 import (
-	"sync"
 	"errors"
+	"sync"
 
-	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/proxy/endpoints"
+	"github.com/gambol99/embassy/proxy/services"
 	"github.com/golang/glog"
 )
 
@@ -29,9 +29,9 @@ type ServiceMap interface {
 	/* the size of the service map */
 	Size() int
 	/* lookup the service proxy by service id */
-	LookupProxyByServiceId(services.ServiceID) (ServiceProxy,bool)
+	LookupProxyByServiceId(services.ServiceID) (ServiceProxy, bool)
 	/* lookup the service proxy by proxy id */
-	LookupProxyByProxyID(ProxyID) (ServiceProxy,bool)
+	LookupProxyByProxyID(ProxyID) (ServiceProxy, bool)
 	/* create a new service proxy */
 	CreateServiceProxy(si services.Service) error
 	/* delete a service proxy */
@@ -41,7 +41,7 @@ type ServiceMap interface {
 	/* get a list of services */
 	ListServices() map[services.ServiceID]services.Service
 	/* get a list of endpoints for a service */
-	ListServiceEndpoints(string) ([]endpoints.Endpoint,error)
+	ListServiceEndpoints(string) ([]endpoints.Endpoint, error)
 }
 
 type ProxyServiceMap struct {
@@ -52,7 +52,7 @@ type ProxyServiceMap struct {
 }
 
 func NewProxyServices() ServiceMap {
-	return &ProxyServiceMap{Proxies: make(map[ProxyID]ServiceProxy, 0) }
+	return &ProxyServiceMap{Proxies: make(map[ProxyID]ServiceProxy, 0)}
 }
 
 func (r *ProxyServiceMap) Size() int {
@@ -72,14 +72,14 @@ func (r *ProxyServiceMap) CreateServiceProxy(si services.Service) error {
 	/* step: check if a service proxy already exists */
 	if proxy, found := r.LookupProxyByServiceId(si.ID); found {
 		// the proxy service already exists, we simply map a proxyID -> ProxyService
-		glog.V(3).Infof("A proxy service already exists for service: %s, mapping new proxy id: %s", si, proxyID )
+		glog.V(3).Infof("A proxy service already exists for service: %s, mapping new proxy id: %s", si, proxyID)
 		r.AddServiceProxy(proxyID, proxy)
 	} else {
 		/* step: we need to create a new service proxy for this service */
-		glog.Infof("Creating new service proxy for service: %s, consumer: %s", si, proxyID )
+		glog.Infof("Creating new service proxy for service: %s, consumer: %s", si, proxyID)
 		proxy, err := NewServiceProxy(si)
 		if err != nil {
-			glog.Errorf("Unable to create proxier, service: %s, error: %s", si, err )
+			glog.Errorf("Unable to create proxier, service: %s, error: %s", si, err)
 			return err
 		}
 		/* step; add the new proxier to the collection */
@@ -103,24 +103,24 @@ func (r *ProxyServiceMap) DestroyServiceProxy(si services.Service) error {
 	}
 	/* step: does we have multiple mappings */
 	if count == 0 {
-		glog.Errorf("Unable to find a service proxy for service: %s", si )
+		glog.Errorf("Unable to find a service proxy for service: %s", si)
 		return errors.New("Service Proxy does not exists")
 	}
 	if count == 1 {
-		glog.Infof("Releasing the resources of service proxy, service: %s", si )
+		glog.Infof("Releasing the resources of service proxy, service: %s", si)
 		proxy, _ := r.Proxies[proxyID]
 		proxy.Close()
 	} else {
 		glog.Infof("Service proxy for service: %s has multiple mappings", si)
 	}
-	delete(r.Proxies, proxyID )
+	delete(r.Proxies, proxyID)
 	return nil
 }
 
 func (r *ProxyServiceMap) ListProxies() []ServiceProxy {
 	r.RLock()
 	defer r.RUnlock()
-	list := make([]ServiceProxy,0)
+	list := make([]ServiceProxy, 0)
 	for _, proxy := range r.Proxies {
 		list = append(list, proxy)
 	}
@@ -130,7 +130,7 @@ func (r *ProxyServiceMap) ListProxies() []ServiceProxy {
 func (r *ProxyServiceMap) ListServices() map[services.ServiceID]services.Service {
 	r.RLock()
 	defer r.RUnlock()
-	list := make(map[services.ServiceID]services.Service,0)
+	list := make(map[services.ServiceID]services.Service, 0)
 	for _, proxy := range r.Proxies {
 		if service, found := list[proxy.GetService().ID]; !found {
 			list[proxy.GetService().ID] = service
@@ -139,21 +139,21 @@ func (r *ProxyServiceMap) ListServices() map[services.ServiceID]services.Service
 	return list
 }
 
-func (r *ProxyServiceMap) ListServiceEndpoints(string) ([]endpoints.Endpoint,error) {
+func (r *ProxyServiceMap) ListServiceEndpoints(string) ([]endpoints.Endpoint, error) {
 	r.RLock()
 	defer r.RUnlock()
-	list := make([]endpoints.Endpoint,0)
+	list := make([]endpoints.Endpoint, 0)
 	return list, nil
 }
 
-func (r *ProxyServiceMap) LookupProxyByServiceId(id services.ServiceID) (ServiceProxy,bool) {
+func (r *ProxyServiceMap) LookupProxyByServiceId(id services.ServiceID) (ServiceProxy, bool) {
 	for _, service := range r.Proxies {
 		if service.GetService().ID == id {
-			glog.V(3).Infof("Found service proxy for service id: %s", id )
+			glog.V(3).Infof("Found service proxy for service id: %s", id)
 			return service, true
 		}
 	}
-	glog.V(3).Infof("Proxy service does not exists for service id: %s", id )
+	glog.V(3).Infof("Proxy service does not exists for service id: %s", id)
 	return nil, false
 }
 
@@ -163,7 +163,7 @@ func (r *ProxyServiceMap) LookupProxyByProxyID(id ProxyID) (proxy ServiceProxy, 
 }
 
 func (r *ProxyServiceMap) AddServiceProxy(proxyID ProxyID, proxy ServiceProxy) {
-	glog.V(8).Infof("Adding Service Proxy, service: %s, service id: %s", proxy.GetService(), proxy.GetService().ID )
+	glog.V(8).Infof("Adding Service Proxy, service: %s, service id: %s", proxy.GetService(), proxy.GetService().ID)
 	r.Proxies[proxyID] = proxy
 	glog.V(3).Infof("Added proxyId: %s to collection of service proxies, size: %d", proxyID, len(r.Proxies))
 }
