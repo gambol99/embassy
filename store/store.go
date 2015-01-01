@@ -58,6 +58,18 @@ type ServiceStoreImpl struct {
 	Shutdown       utils.ShutdownSignalChannel
 }
 
+func NewServiceStore() ServiceStore {
+	return &ServiceStoreImpl{
+		// channel to pass to providers
+		make(BackendServiceChannel, 20),
+		// a map of providers
+		make(map[string]ServiceProvider, 0),
+		// a list of people listening for service updates
+		make([]services.ServiceEventsChannel, 0),
+		// shutdown signal for the service
+		make(utils.ShutdownSignalChannel)}
+}
+
 func (r *ServiceStoreImpl) AddServiceListener(channel services.ServiceEventsChannel) {
 	glog.V(2).Infof("Adding a new service listener to the ServiceStore, channel: %V", channel)
 	r.Listeners = append(r.Listeners, channel)
@@ -75,10 +87,8 @@ func (r *ServiceStoreImpl) AddServiceProvider(name string, provider ServiceProvi
 
 func (r *ServiceStoreImpl) PushServiceEvent(service services.ServiceEvent) {
 	for _, channel := range r.Listeners {
-		go func(ch services.ServiceEventsChannel) {
-			ch <- service
-			glog.V(12).Infof("Pushed the service event: %s to listener: %V", service, ch)
-		}(channel)
+		glog.V(12).Infof("Pushed the service event: %s to listener: %V", service, channel)
+		channel <- service
 	}
 }
 
@@ -106,8 +116,6 @@ func (r *ServiceStoreImpl) FindServices() error {
 			case <-r.Shutdown:
 				/* step: shutdown the service store */
 				glog.Infof("Shutting down the Services Store")
-
-				/* step: wait for a backend definition to be channeled from a provider */
 			case definition := <-r.BackendChannel:
 				glog.V(5).Infof("Recieved definition from provider, definition: %s", definition)
 				// step: convert the definition into a service
@@ -133,9 +141,7 @@ func (r *ServiceStoreImpl) FindServices() error {
 	return nil
 }
 
-/*
-Creates a signal to shutdown any resources the ServiceStore is holding
-*/
+/* Creates a signal to shutdown any resources the ServiceStore is holding */
 func (r *ServiceStoreImpl) Close() {
 	glog.Infof("Attempting to shutdown the Services Store")
 	r.Shutdown <- true

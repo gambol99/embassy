@@ -56,6 +56,16 @@ type DockerServiceStore struct {
 	ServiceMap
 }
 
+func AddDockerServiceStore(store ServiceStore) error {
+	docker_store, err := NewDockerServiceStore()
+	if err != nil {
+		glog.Errorf("Unable to create the docker service store, error: %s", err)
+		return err
+	}
+	store.AddServiceProvider("docker", docker_store)
+	return nil
+}
+
 type ServiceMap struct {
 	sync.RWMutex
 	Services map[string][]DefinitionEvent
@@ -63,10 +73,10 @@ type ServiceMap struct {
 
 func (r *ServiceMap) Add(containerID string, definitions []DefinitionEvent) {
 	r.Lock()
+	defer r.Unlock()
 	if r.Services == nil {
 		r.Services = make(map[string][]DefinitionEvent)
 	}
-	defer r.Unlock()
 	r.Services[containerID] = definitions
 }
 
@@ -105,28 +115,31 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 	/* step: before we stream the services take the time to lookup for containers already running and find the links */
 	r.LookupRunningContainers(channel)
 
+	/* channel to receive events */
+	docker_events := make(chan *docker.APIEvents)
 	go func() {
-		/* channel to receive events */
-		dockerEvents := make(chan *docker.APIEvents, 10)
+		defer close(docker_events)
+
 		/* step: add our channel as an event listener for docker events */
-		if err := r.Docker.AddEventListener(dockerEvents); err != nil {
-			glog.Errorf("Unable to register docker events listener, error: %s", err)
+		if err := r.Docker.AddEventListener(docker_events); err != nil {
+			glog.Fatalf("Unable to register docker events listener, error: %s", err)
 			return
 		}
 		/* step: start the event loop and wait for docker events */
 		glog.V(5).Infof("Entering into the docker events loop")
+
 		for {
 			select {
-			case event := <-dockerEvents:
+			case event := <-docker_events:
 				glog.V(4).Infof("Received docker event status: %s, id: %s", event.Status, event.ID)
-				if event.Status == DOCKER_START {
-					r.ProcessDockerCreation(event.ID, channel)
-				} else if event.Status == DOCKER_DESTROY {
-					r.ProcessDockerDestroy(event.ID, channel)
+				switch event.Status {
+				case DOCKER_START:
+					go r.ProcessDockerCreation(event.ID, channel)
+				case DOCKER_DESTROY:
+					go r.ProcessDockerDestroy(event.ID, channel)
 				}
 			}
 		}
-		glog.Errorf("Exitting the docker services stream")
 	}()
 	return nil
 }
@@ -136,7 +149,7 @@ func (r *DockerServiceStore) LookupRunningContainers(channel BackendServiceChann
 	if containers, err := r.Docker.ListContainers(docker.ListContainersOptions{}); err == nil {
 		/* step: iterate the containers and look for services */
 		for _, container := range containers {
-			go r.ProcessDockerCreation(container.ID, channel)
+			r.ProcessDockerCreation(container.ID, channel)
 		}
 	} else {
 		glog.Errorf("Failed to list the currently running container, error: %s", err)

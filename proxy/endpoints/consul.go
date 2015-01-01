@@ -23,19 +23,20 @@ import (
 
 	consulapi "github.com/armon/consul-api"
 	"github.com/gambol99/embassy/proxy/services"
-	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
 type ConsulClient struct {
+	/* the consul api client */
 	Client    *consulapi.Client
-	Shutdown  utils.ShutdownSignalChannel
+	/* the current wait index */
 	WaitIndex uint64
+	/* the kill off */
 	KillOff   bool
 }
 
 const (
-	defaultWaitTime = 120 * time.Second
+	DEFAULT_WAIT_TIME = 10 * time.Second
 )
 
 func NewConsulClent(discovery string) (EndpointsProvider, error) {
@@ -49,7 +50,7 @@ func NewConsulClent(discovery string) (EndpointsProvider, error) {
 		config.Address = uri.Host
 	}
 	client, err := consulapi.NewClient(config)
-	return &ConsulClient{client, make(utils.ShutdownSignalChannel), uint64(0), false}, nil
+	return &ConsulClient{client, uint64(0), false}, nil
 }
 
 /*
@@ -65,7 +66,7 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 		for {
 			if r.KillOff {
 				glog.V(3).Infof("Terminating the consul watcher on service: %s", si.Name)
-				return
+				break
 			}
 			if r.WaitIndex == 0 {
 				/* step: get the wait index for the service */
@@ -82,7 +83,7 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 			/* step: build the query - make sure we have a timeout */
 			queryOptions := &consulapi.QueryOptions{
 				WaitIndex: r.WaitIndex,
-				WaitTime:  defaultWaitTime}
+				WaitTime:  DEFAULT_WAIT_TIME}
 
 			/* step: making a blocking watch call for changes on the service */
 			_, meta, err := catalog.Service(si.Name, "", queryOptions)
@@ -96,7 +97,7 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 				}
 				/* step: if the wait and last index are the same, we can continue */
 				if r.WaitIndex == meta.LastIndex {
-					glog.V(7).Infof("The WaitIndea and LastIndex are the same, skipping")
+					glog.V(7).Infof("The WaitIndex and LastIndex are the same, skipping: killOff: %s", r.KillOff )
 					continue
 				}
 				/* step: update the index */
@@ -109,6 +110,7 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 				endpointUpdateChannel <- event
 			}
 		}
+		close(endpointUpdateChannel)
 	}()
 	return endpointUpdateChannel, nil
 }
@@ -132,6 +134,5 @@ func (r *ConsulClient) List(si *services.Service) ([]Endpoint, error) {
 
 func (r *ConsulClient) Close() {
 	glog.Infof("Request to shutdown the consul agent")
-	r.Shutdown <- true
 	r.KillOff = true
 }
