@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func prepareFiles(t *testing.T) (string, string, string, string) {
+func prepareFiles(t *testing.T) (string, string, string) {
 	dir, err := ioutil.TempDir("", "docker-system-test")
 	if err != nil {
 		t.Fatal(err)
@@ -26,12 +26,11 @@ func prepareFiles(t *testing.T) (string, string, string, string) {
 		t.Fatal(err)
 	}
 
-	return file, invalid, symlink, dir
+	return file, invalid, symlink
 }
 
 func TestLUtimesNano(t *testing.T) {
-	file, invalid, symlink, dir := prepareFiles(t)
-	defer os.RemoveAll(dir)
+	file, invalid, symlink := prepareFiles(t)
 
 	before, err := os.Stat(file)
 	if err != nil {
