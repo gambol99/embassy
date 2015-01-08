@@ -58,6 +58,7 @@ func NewServiceProxy(si services.Service) (ServiceProxy, error) {
 	/* step: creating the service proxy */
 	proxy := new(Proxier)
 	proxy.Service = si
+	proxy.Shutdown = make(utils.ShutdownSignalChannel)
 	if balancer, err := loadbalancer.NewLoadBalancer("rr"); err != nil {
 		glog.Errorf("Failed to create load balancer for proxier, service: %s, error: %s", si, err)
 		return nil, err
@@ -87,7 +88,7 @@ func (px Proxier) String() string {
 
 func (r *Proxier) Close() {
 	glog.Infof("Destroying the service proxy: %s", r)
-	r.Endpoints.Close()
+	r.Shutdown <- true
 }
 
 func (r *Proxier) GetService() services.Service {
@@ -106,6 +107,7 @@ func (r *Proxier) ProcessEvents() {
 			case <-r.Shutdown:
 				glog.Infof("Shutting the Service Proxy for service: %s", r.Service)
 				r.Endpoints.Close()
+				return
 			case <-endpointsChannel:
 				glog.V(3).Infof("Endpoints for service: %s updated, synchronizing endpoints", r.Service)
 				if endpoints, err := r.Endpoints.ListEndpoints(); err != nil {
