@@ -8,6 +8,8 @@ FROM centos
 MAINTAINER <gambol99@gmail.com>
 
 ADD startup.sh ./startup.sh
-RUN curl -ksL https://drone.io/github.com/gambol99/embassy/files/embassy.gz | gunzip - > /bin/embassy
+RUN curl -ksL https://drone.io/github.com/gambol99/embassy/files/embassy.gz > /bin/embassy.gz
+RUN md5sum /bin/embassy.gz
+RUN gunzip /bin/embassy.gz
 RUN chmod +x /startup.sh; chmod +x /bin/embassy
 ENTRYPOINT [ "/startup.sh" ]
