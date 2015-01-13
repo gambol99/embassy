@@ -61,7 +61,7 @@ type ServiceStoreImpl struct {
 func NewServiceStore() ServiceStore {
 	return &ServiceStoreImpl{
 		// channel to pass to providers
-		make(BackendServiceChannel, 20),
+		make(BackendServiceChannel, 5),
 		// a map of providers
 		make(map[string]ServiceProvider, 0),
 		// a list of people listening for service updates
@@ -86,10 +86,12 @@ func (r *ServiceStoreImpl) AddServiceProvider(name string, provider ServiceProvi
 }
 
 func (r *ServiceStoreImpl) PushServiceEvent(service services.ServiceEvent) {
-	for _, channel := range r.Listeners {
-		glog.V(12).Infof("Pushed the service event: %s to listener: %V", service, channel)
-		channel <- service
-	}
+	go func() {
+		for _, channel := range r.Listeners {
+			glog.V(6).Infof("Pushed the service event: %s to listener: %V", service, channel)
+			channel <- service
+		}
+	}()
 }
 
 func (r *ServiceStoreImpl) Start() error {
