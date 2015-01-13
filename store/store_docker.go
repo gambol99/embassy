@@ -23,7 +23,7 @@ import (
 	"strings"
 	"sync"
 
-	docker "github.com/fsouza/go-dockerclient"
+	docker "github.com/gambol99/go-dockerclient"
 	"github.com/golang/glog"
 	"strconv"
 )
@@ -34,7 +34,7 @@ const (
 	DOCKER_CREATED          = "created"
 	DOCKER_DESTROY          = "destroy"
 	DOCKER_CONTAINER_PREFIX = "container:"
-	DEFAULT_DOCKER_SOCKET   = "unix://var/run/docker.sock"
+	DEFAULT_DOCKER_SOCKET   = "unix:///var/run/docker.sock"
 	DEFAULT_BACKEND_PREFIX  = "^BACKEND_"
 	DEFAULT_PROXY_GROUP_ID  = 0
 )
@@ -67,7 +67,9 @@ func AddDockerServiceStore(store ServiceStore) error {
 }
 
 type ServiceMap struct {
-	sync.RWMutex
+	/* the lock for the service map */
+	sync.Mutex
+	/* a map containing the services - container => definition */
 	Services map[string][]DefinitionEvent
 }
 
@@ -87,8 +89,8 @@ func (r *ServiceMap) Remove(containerID string) {
 }
 
 func (r *ServiceMap) Has(containerId string) ([]DefinitionEvent, bool) {
-	r.RLock()
-	defer r.RUnlock()
+	r.Lock()
+	defer r.Unlock()
 	if definitions, found := r.Services[containerId]; found {
 		return definitions, true
 	}
@@ -118,8 +120,6 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 	/* channel to receive events */
 	docker_events := make(chan *docker.APIEvents)
 	go func() {
-		defer close(docker_events)
-
 		/* step: add our channel as an event listener for docker events */
 		if err := r.Docker.AddEventListener(docker_events); err != nil {
 			glog.Fatalf("Unable to register docker events listener, error: %s", err)
