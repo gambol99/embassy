@@ -35,7 +35,7 @@ const (
 	DOCKER_DESTROY          = "destroy"
 	DOCKER_CONTAINER_PREFIX = "container:"
 	DEFAULT_DOCKER_SOCKET   = "unix://var/run/docker.sock"
-	DEFAULT_BACKEND_PREFIX  = "BACKEND_"
+	DEFAULT_BACKEND_PREFIX  = "^BACKEND_"
 	DEFAULT_PROXY_GROUP_ID  = 0
 )
 
@@ -140,6 +140,7 @@ func (r *DockerServiceStore) StreamServices(channel BackendServiceChannel) error
 				}
 			}
 		}
+		glog.Errorf("Exitting the docker events loop")
 	}()
 	return nil
 }
