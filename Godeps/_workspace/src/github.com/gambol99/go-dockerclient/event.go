@@ -239,8 +239,8 @@ func (eventState *eventMonitoringState) sendEvent(event *APIEvents) {
 }
 
 func (eventState *eventMonitoringState) updateLastSeen(e *APIEvents) {
-	eventState.Lock()
-	defer eventState.Unlock()
+	//eventState.Lock()
+	//defer eventState.Unlock()
 	if atomic.LoadInt64(eventState.lastSeen) < e.Time {
 		atomic.StoreInt64(eventState.lastSeen, e.Time)
 	}
