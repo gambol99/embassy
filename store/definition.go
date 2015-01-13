@@ -72,10 +72,10 @@ func (b DefinitionEvent) GetService() (service services.Service, err error) {
 		service.Name = BD_SERVICE_NAME.FindStringSubmatch(section_name)[0]
 		service.Port, err = utils.ToInteger(BD_SERVICE_PORT.FindAllStringSubmatch(section_network, 1)[0][1])
 		if err != nil {
-			return service, errors.New("Invalid service port found in defintion")
+			return service, errors.New("Invalid service port found in defintion: " + b.Definition)
 		}
 	} else {
-		return service, errors.New("Invalid service definition, does not match requirements")
+		return service, errors.New("Invalid service definition, does not match requirements: " + b.Definition)
 	}
 	return
 }
