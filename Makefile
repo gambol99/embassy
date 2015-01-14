@@ -24,6 +24,7 @@ all: clean build docker
 
 clean:
 	rm -f ./stage/embassy
+	rm -rf ./release
 	go clean
 
 release:
