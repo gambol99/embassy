@@ -34,6 +34,7 @@ const (
 	DEFAULT_DISCOVERY_URI  = "consul://127.0.0.1:8500"
 	DEFAULT_SERVICE_PREFIX = "BACKEND_"
 	DEFAULT_PROXY_GROUP_ID = 0
+	DEFAULT_MAX_ENDPOINTS  = 3
 	SO_ORIGINAL_DST        = 80
 )
 
@@ -188,6 +189,7 @@ func (px *ProxyStore) ProxyConnections() error {
 					glog.Errorf("Unable to get the remote ipaddress and port, error: %s", err)
 					connection.Close()
 				}
+
 				/* step: get the original port */
 				original_port, err := px.GetOriginalPort(connection)
 				if err != nil {
@@ -199,9 +201,11 @@ func (px *ProxyStore) ProxyConnections() error {
 					connection.RemoteAddr(), connection.LocalAddr(), original_port)
 				/* step: create a proxyId for this */
 				proxyId := GetProxyIDByConnection(source_ipaddress, original_port)
+
 				/* step: find the service proxy responsible for handling this service */
 				if proxier, found := px.Services.LookupProxyByProxyID(proxyId); found {
-					/* step: handle the connection in the proxier */
+
+					/* step: handle the connection in the service proxy */
 					if err := proxier.HandleTCPConnection(connection); err != nil {
 						glog.Errorf("Failed to handle the connection: %s, proxyid: %s, error: %s", connection.RemoteAddr(),
 							proxyId, err)

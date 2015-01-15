@@ -31,7 +31,7 @@ import (
 	"github.com/golang/glog"
 )
 
-var endpointDialTimeout = []time.Duration{1, 2, 4}
+var endpointDialTimeout = []time.Duration{2, 4, 8}
 
 type ServiceProxy interface {
 	/* close all the assets associated to this service */
@@ -71,9 +71,8 @@ func NewServiceProxy(si services.Service) (ServiceProxy, error) {
 		return nil, err
 	} else {
 		proxy.Endpoints = endpoints
-		if err = proxy.Endpoints.Synchronize(); err != nil {
-			glog.Errorf("Failed to synchronize the endpoints on proxier startup, error: %s", err)
-		}
+		/* step: we can synchronize the endpoints in the backend */
+		go proxy.Endpoints.Synchronize()
 		/* step: start the discovery agent watcher */
 		proxy.Endpoints.WatchEndpoints()
 	}
@@ -122,46 +121,58 @@ func (r *Proxier) ProcessEvents() {
 
 func (r *Proxier) HandleTCPConnection(inConn *net.TCPConn) error {
 	/* step: we try and connect to a backend */
-	outConn, err := r.TryConnect()
-	/* step: set some deadlines */
-	if err != nil {
+	if outConn, err := r.TryConnect(); err != nil {
 		glog.Errorf("Failed to connect to balancer: %v", err)
 		inConn.Close()
 		return err
+	} else {
+		/* step: we spin up to async routines to handle the byte transfer */
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go TransferTCPBytes("->", inConn, outConn, &wg)
+		go TransferTCPBytes("<-", outConn, inConn, &wg)
+		wg.Wait()
+		inConn.Close()
+		outConn.Close()
 	}
-	/* step: we spin up to async routines to handle the byte transfer */
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go TransferTCPBytes("->", inConn, outConn, &wg)
-	go TransferTCPBytes("<-", outConn, inConn, &wg)
-	wg.Wait()
-	inConn.Close()
-	outConn.Close()
 	return nil
 }
 
 func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
-	/* step: attempt multiple times to connect to backend */
-	for _, retryTimeout := range endpointDialTimeout {
+	/* step: attempt to connect to endpoint */
+	for i := 0; i < DEFAULT_MAX_ENDPOINTS; i++ {
+		/* step: we get the endpoints for this service */
 		endpoints, err := r.Endpoints.ListEndpoints()
 		if err != nil {
 			glog.Errorf("Unable to retrieve any endpoints for service: %s, error: %s", r.Service, err)
 			return nil, err
 		}
-		/* step: we get a service endpoint from the load balancer */
+
+		/* step: we select an endpoint from the list */
 		endpoint, err := r.Balancer.SelectEndpoint(endpoints)
 		if err != nil {
 			glog.Errorf("Unable to find an service endpoint for service: %s", r.Service, err)
 			return nil, err
 		}
-		glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint)
-		/* step: attempt to connect to the backend */
-		outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout*time.Second)
-		if err != nil {
-			glog.Errorf("Failed to connect to backend service: %s, error: %s", endpoint, err)
-			continue
+
+		/* step: we use x timeouts to connect to backend */
+		for _, retryTimeout := range endpointDialTimeout {
+			glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint)
+
+			/* step: attempt to connect to the backend */
+			outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout * time.Second)
+			if err != nil {
+				glog.Errorf("Failed to connect to backend service: %s, timeout: %d, error: %s", endpoint, retryTimeout * time.Second, err)
+				continue
+			}
+			return outConn.(*net.TCPConn), nil
 		}
-		return outConn.(*net.TCPConn), nil
+
+		/* step: we only need to try more than once if the endpoints size if greater than 1: yes
+		technically the endpoints might have changed between this time period */
+		if len(endpoints) <= 1 {
+			break
+		}
 	}
 	glog.Errorf("Unable to connect service: %s to any endpoints", r.Service)
 	return nil, errors.New("Unable to connect to any endpoints")
@@ -170,11 +181,11 @@ func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
 func TransferTCPBytes(direction string, dest, src *net.TCPConn, waitgroup *sync.WaitGroup) {
 	defer waitgroup.Done()
 	glog.V(4).Infof("Copying %s: %s -> %s", direction, src.RemoteAddr(), dest.RemoteAddr())
-	n, err := io.Copy(dest, src)
-	if err != nil {
+	if n, err := io.Copy(dest, src); err != nil {
 		glog.Errorf("I/O error: %v", err)
+	} else {
+		glog.V(4).Infof("Copied %d bytes %s: %s -> %s", n, direction, src.RemoteAddr(), dest.RemoteAddr())
 	}
-	glog.V(4).Infof("Copied %d bytes %s: %s -> %s", n, direction, src.RemoteAddr(), dest.RemoteAddr())
 	dest.CloseWrite()
 	src.CloseRead()
 }
