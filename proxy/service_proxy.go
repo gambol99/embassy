@@ -140,7 +140,7 @@ func (r *Proxier) HandleTCPConnection(inConn *net.TCPConn) error {
 
 func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
 	/* step: attempt to connect to endpoint */
-	for i := 0; i < DEFAULT_MAX_ENDPOINTS; i++ {
+	for _, retryTimeout := range endpointDialTimeout {
 		/* step: we get the endpoints for this service */
 		endpoints, err := r.Endpoints.ListEndpoints()
 		if err != nil {
@@ -156,23 +156,15 @@ func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
 		}
 
 		/* step: we use x timeouts to connect to backend */
-		for _, retryTimeout := range endpointDialTimeout {
-			glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint)
+		glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint)
 
-			/* step: attempt to connect to the backend */
-			outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout * time.Second)
-			if err != nil {
-				glog.Errorf("Failed to connect to backend service: %s, timeout: %d, error: %s", endpoint, retryTimeout * time.Second, err)
-				continue
-			}
-			return outConn.(*net.TCPConn), nil
+		/* step: attempt to connect to the backend */
+		outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout * time.Second)
+		if err != nil {
+			glog.Errorf("Failed to connect to backend service: %s, timeout: %d seconds, error: %s", endpoint, retryTimeout, err)
+			continue
 		}
-
-		/* step: we only need to try more than once if the endpoints size if greater than 1: yes
-		technically the endpoints might have changed between this time period */
-		if len(endpoints) <= 1 {
-			break
-		}
+		return outConn.(*net.TCPConn), nil
 	}
 	glog.Errorf("Unable to connect service: %s to any endpoints", r.Service)
 	return nil, errors.New("Unable to connect to any endpoints")
