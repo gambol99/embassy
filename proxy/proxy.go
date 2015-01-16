@@ -38,9 +38,9 @@ const (
 )
 
 var (
-	discovery_url   = flag.String("discovery", DEFAULT_DISCOVERY_URI, "the discovery backend to pull the services from")
-	proxy_interface = flag.String("interface", DEFAULT_INTERFACE, "the interface to take the proxy address from")
-	proxy_port      = flag.Int("port", DEFAULT_PROXY_PORT, "the tcp port which the proxy should listen on")
+	Discovery_url   = flag.String("discovery", DEFAULT_DISCOVERY_URI, "the discovery backend to pull the services from")
+	Proxy_interface = flag.String("interface", DEFAULT_INTERFACE, "the interface to take the proxy address from")
+	Proxy_port      = flag.Int("port", DEFAULT_PROXY_PORT, "the tcp port which the proxy should listen on")
 )
 
 type ProxyService interface {
@@ -66,14 +66,14 @@ func NewProxyService(store services.ServiceStore) (ProxyService, error) {
 	glog.Infof("Initializing the ProxyService")
 
 	/* step: we need to grab the ip address of the interface to bind to */
-	ipaddress, err := utils.GetLocalIPAddress(*proxy_interface)
+	ipaddress, err := utils.GetLocalIPAddress(*Proxy_interface)
 	if err != nil {
-		glog.Error("Unable to get the local ip address from interface: %s, error: %s", *proxy_interface, err)
+		glog.Error("Unable to get the local ip address from interface: %s, error: %s", *Proxy_interface, err)
 		return nil, err
 	}
 	/* step: bind to the interface */
-	glog.Infof("Binding proxy service to interface: %s:%d", ipaddress, *proxy_port)
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", *proxy_port))
+	glog.Infof("Binding proxy service to interface: %s:%d", ipaddress, *Proxy_port)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", *Proxy_port))
 	if err != nil {
 		glog.Errorf("Failed to bind the proxy service to interface, error: %s", err)
 		return nil, err

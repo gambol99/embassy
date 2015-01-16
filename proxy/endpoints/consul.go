@@ -97,7 +97,6 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 				}
 				/* step: if the wait and last index are the same, we can continue */
 				if r.WaitIndex == meta.LastIndex {
-					glog.V(7).Infof("The WaitIndex and LastIndex are the same, skipping: killOff: %s", r.KillOff )
 					continue
 				}
 				/* step: update the index */

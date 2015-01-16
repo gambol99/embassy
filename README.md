@@ -1,8 +1,7 @@
 
 [![Build Status](https://drone.io/github.com/gambol99/embassy/status.png)](https://drone.io/github.com/gambol99/embassy/latest)
 
-Embassy
-==========
+### **Embassy**
 Is a service proxy for docker containers, which uses either etcd/consul for service endpoint discovery. It can be run in the following modes;
 
 >   - run locally inside the container as seperate service
@@ -11,9 +10,49 @@ Is a service proxy for docker containers, which uses either etcd/consul for serv
 
 Embassy run is a single tcp port with iptables dnatting the destination and port over to the proxy from the virtual proxy ip (namely the docker0 interface ip)
 
-------------
-Example Usage
--------------
+#### **Service Providers**
+
+At present embassy supports two service providers;
+
+>  **Docker services**: we read the services and backend requests when a container is started. Note, we also perform a initial listing during startup (so anything already running and requesting backends is processed). Naturally, we need access to the docker socket to listen to events.
+
+> **Static services**: the service requests are read from the command line when embassy is started up
+
+#### **Docker Usage**
+
+At present networking is perform in one of one two; if we are running the service proxy on the docker host, we'd have to DNAT *(i.e. --dnat)* between the containers and the parent host, alternatively if we are running the service with a container or using docker links we can use iptables redirect --redirect. Check the startup.sh in stage/  to see the code.
+
+    # a) Running the service proxy on the docker host itself
+    #
+  $ docker run -d --privileged=true --net=host \
+    -e PROXY_IP=172.17.42.1 \
+    -e PROXY_PORT=9999 \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    gambol99/embassy \
+    --dnat -provider=docker -v=3 -interface=eth0 \
+    -discovery=consul://HOST:8500
+
+  # b) Running inside the container along with your services
+  # (so you could run this under supervisord or bluepill etc)
+  # Note: you'll need to add your own iptables rule to perform the redirect (see the /stage/startup.sh for details)
+  $ embassy -discovery=consul://<IP>:8500 \
+    -provider=static \
+    -services='frontend_http;80,mysql;3306,redis;6563'
+
+  # c) Run as a container and using docker links to proxy (docker or static providers)
+  $ docker run -d --privileged=true \
+    --name embassy \
+    -e PROXY_IP=172.17.42.1 \
+    -e PROXY_PORT=9999 \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    gambol99/embassy \
+    --redirect -provider=docker -v=3 -interface=eth0 \
+    -discovery=consul://HOST:8500
+
+  # Link a container
+  # docker run -ti --rm --links embassy:proxy -e BACKEND_FRONTEND='frontend_http;80' centos /bin/bash
+
+#### **Example Usage**
 
 - You already have some means of service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) if not)
 
@@ -34,7 +73,7 @@ When the docker boot is will create a iptables entry for DNAT all traffic from 1
         # docker run -d -P BACKEND_APP1="/services/prod/app1/80;80" app1
         # curl 172.17.42.1
 
-**Embassy will**;
+##### **Embassy will**;
 
 > - see the container creation, read the environment variables, scan for service request/s
 > - in this example, it create a proxier with the proxyID = container_ip + service_port
@@ -61,8 +100,8 @@ Note: mutiple services are simple added by placing additional environment variab
       -e BACKEND_DB_MASTER="/services/prod/db/master/3306;3306"
 
 ---------------
-Service Descriptor
-----------------------
+#### **Service Descriptor**
+
 Service descriptors are read from the environment variables of the container, they MUST be prefixed with 'BACKEND_' and the rest is up to you.
 
 The descriptor itself has the following format;
@@ -76,16 +115,13 @@ The descriptor itself has the following format;
 
 --------------
 
-QuickStart
-==========
+#### **QuickStart**
 
-Take a look at wiki showing a [CoreOS Example](https://github.com/gambol99/embassy/wiki/CoreOS-Example)
+Take a look at wiki showing a [CoreOS](https://github.com/gambol99/embassy/tree/master/docs) example.
 
-Discovery Agent
-===============
+### **Discovery Agent**
 
-Etcd Notes
------------
+#### **Etcd Notes**
 
 The etcd discovery agent will recursively retrieve all nodes under the branch. An example registration given below
 
@@ -124,15 +160,14 @@ An example of the service document (i.e. the etcd ) /services/prod/apache/80/491
 
 Discovery will then read these and produce an endpoint of 192.168.13.90:49161
 
-Consul Notes
--------------
+#### **Consul Notes**
 
 The consul agent watches for changes on services; the manner in which you get the services registered once again is up to you, though take a look at [registrator](https://github.com/progrium/registrator) if you've not got something in place already.
 
-	$ ./embassy -interface eth0 -discovery 'consul://HOST:8500' -v=3 -p=9999
-	# (assuming registrator and a consul cluster is already at hand)
-	$ docker run -d -P -e SERVICE_80_NAME=frontend_http eboraas/apache
-	# linking the backend
-	$ docker run -ti --rm -e BACKEND_APACHE_80='frontend_http;80' centos /bin/bash
-	[e6d41829bd76] $ curl 172.17.42.1
-	
+  $ ./embassy -interface eth0 -discovery 'consul://HOST:8500' -v=3 -p=9999
+  # (assuming registrator and a consul cluster is already at hand)
+  $ docker run -d -P -e SERVICE_80_NAME=frontend_http eboraas/apache
+  # linking the backend
+  $ docker run -ti --rm -e BACKEND_APACHE_80='frontend_http;80' centos /bin/bash
+  [e6d41829bd76] $ curl 172.17.42.1
+

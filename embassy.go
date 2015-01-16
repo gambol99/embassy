@@ -25,33 +25,36 @@ import (
 	"github.com/golang/glog"
 )
 
+
+
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
+	/* step: set max processors */
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	glog.Infof("Starting the Embassy Docker Service Proxy, version: %s", Version)
+
 	/* step: create the services store */
-	services := store.NewServiceStore()
-	/* step: we use the default docker store for now */
-	if err := store.AddDockerServiceStore(services); err != nil {
-		glog.Errorf("Failed to add the docker service provider, error: %s", err)
+	services, err := store.NewServiceStore()
+	if err != nil {
+		glog.Errorf("Failed to create the service provider, error: %s", err )
 		os.Exit(1)
 	}
+
 	/* step: create the proxy service */
-	service, err := proxy.NewProxyService(services)
-	if err != nil {
+	if service, err := proxy.NewProxyService(services); err != nil {
 		glog.Errorf("Failed to create the proxy service, error: %s", err)
 		return
+	} else {
+		done := make(chan bool)
+		go func() {
+			if err := service.Start(); err != nil {
+				glog.Errorf("Failed to start the proxy service, error: %s", err)
+				return
+			}
+			done <- true
+		}()
+		<-done
+		glog.Infof("Exitting the proxy service ")
 	}
-
-	done := make(chan bool)
-	go func() {
-		if err := service.Start(); err != nil {
-			glog.Errorf("Failed to start the proxy service, error: %s", err)
-			return
-		}
-		done <- true
-	}()
-	<-done
-	glog.Infof("Exitting the proxy service ")
 }

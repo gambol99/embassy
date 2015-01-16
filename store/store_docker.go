@@ -56,14 +56,13 @@ type DockerServiceStore struct {
 	ServiceMap
 }
 
-func AddDockerServiceStore(store ServiceStore) error {
-	docker_store, err := NewDockerServiceStore()
-	if err != nil {
+func AddDockerServiceStore() (ServiceProvider,error) {
+	if docker_store, err := NewDockerServiceStore(); err != nil {
 		glog.Errorf("Unable to create the docker service store, error: %s", err)
-		return err
+		return nil, err
+	} else {
+		return docker_store, nil
 	}
-	store.AddServiceProvider("docker", docker_store)
-	return nil
 }
 
 type ServiceMap struct {
