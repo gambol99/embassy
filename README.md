@@ -22,41 +22,42 @@ At present embassy supports two service providers;
 
 At present networking is perform in one of one two; if we are running the service proxy on the docker host, we'd have to DNAT *(i.e. --dnat)* between the containers and the parent host, alternatively if we are running the service with a container or using docker links we can use iptables redirect --redirect. Check the startup.sh in stage/  to see the code.
 
-    # a) Running the service proxy on the docker host itself
-    #
-  $ docker run -d --privileged=true --net=host \
-    -e PROXY_IP=172.17.42.1 \
-    -e PROXY_PORT=9999 \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    gambol99/embassy \
-    --dnat -provider=docker -v=3 -interface=eth0 \
-    -discovery=consul://HOST:8500
+      # a) Running the service proxy on the docker host itself
+      #
+      $ docker run -d --privileged=true --net=host \
+        -e PROXY_IP=172.17.42.1 \
+        -e PROXY_PORT=9999 \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        gambol99/embassy \
+        --dnat -provider=docker -v=3 -interface=eth0 \
+        -discovery=consul://HOST:8500
 
-  # b) Running inside the container along with your services
-  # (so you could run this under supervisord or bluepill etc)
-  # Note: you'll need to add your own iptables rule to perform the redirect (see the /stage/startup.sh for details)
-  $ embassy -discovery=consul://<IP>:8500 \
-    -provider=static \
-    -services='frontend_http;80,mysql;3306,redis;6563'
+      # b) Running inside the container along with your services
+      # (so you could run this under supervisord or bluepill etc)
+      # Note: you'll need to add your own iptables rule to perform the redirect (see the /stage/startup.sh for details)
+      $ embassy -discovery=consul://<IP>:8500 \
+        -provider=static \
+        -services='frontend_http;80,mysql;3306,redis;6563'
 
-  # c) Run as a container and using docker links to proxy (docker or static providers)
-  $ docker run -d --privileged=true \
-    --name embassy \
-    -e PROXY_IP=172.17.42.1 \
-    -e PROXY_PORT=9999 \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    gambol99/embassy \
-    --redirect -provider=docker -v=3 -interface=eth0 \
-    -discovery=consul://HOST:8500
+      # c) Run as a container and using docker links to proxy (docker or static providers)
+      $ docker run -d --privileged=true \
+        --name embassy \
+        -e PROXY_IP=172.17.42.1 \
+        -e PROXY_PORT=9999 \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        gambol99/embassy \
+        --redirect -provider=docker -v=3 -interface=eth0 \
+        -discovery=consul://HOST:8500
 
-  # Link a container
-  # docker run -ti --rm --links embassy:proxy -e BACKEND_FRONTEND='frontend_http;80' centos /bin/bash
+      # Link a container
+      # docker run -ti --rm --links embassy:proxy -e BACKEND_FRONTEND='frontend_http;80' centos /bin/bash
 
 #### **Example Usage**
 
 - You already have some means of service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) if not)
 
-        # docker run -d --privileged=true --net=host -e INTERFACE=[HOST-IFACED] -v /var/run/docker.sock:/var/run/docker.sock -e DISCOVERY="etcd://HOST:4001" gambol99/embassy
+        # docker run -d --privileged=true --net=host -e INTERFACE=[HOST-IFACED] -v \
+        /var/run/docker.sock:/var/run/docker.sock -e DISCOVERY="etcd://HOST:4001" gambol99/embassy
 
 When the docker boot is will create a iptables entry for DNAT all traffic from 172.17.42.1 to HOST_IFACE:9999. Check the stage/startup.sh if you wish to alter this
 
@@ -163,11 +164,11 @@ Discovery will then read these and produce an endpoint of 192.168.13.90:49161
 #### **Consul Notes**
 
 The consul agent watches for changes on services; the manner in which you get the services registered once again is up to you, though take a look at [registrator](https://github.com/progrium/registrator) if you've not got something in place already.
-
-  $ ./embassy -interface eth0 -discovery 'consul://HOST:8500' -v=3 -p=9999
-  # (assuming registrator and a consul cluster is already at hand)
-  $ docker run -d -P -e SERVICE_80_NAME=frontend_http eboraas/apache
-  # linking the backend
-  $ docker run -ti --rm -e BACKEND_APACHE_80='frontend_http;80' centos /bin/bash
-  [e6d41829bd76] $ curl 172.17.42.1
+    
+      $ ./embassy -interface eth0 -discovery 'consul://HOST:8500' -v=3 -p=9999
+      # (assuming registrator and a consul cluster is already at hand)
+      $ docker run -d -P -e SERVICE_80_NAME=frontend_http eboraas/apache
+      # linking the backend
+      $ docker run -ti --rm -e BACKEND_APACHE_80='frontend_http;80' centos /bin/bash
+      [e6d41829bd76] $ curl 172.17.42.1
 
