@@ -22,7 +22,21 @@ import (
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
+	"flag"
 )
+
+const (
+	/* the default services provider */
+	DEFAULT_STORE_PROVIDER = "docker"
+)
+
+var (
+	provider *string
+)
+
+func init() {
+	provider = flag.String("provider", DEFAULT_STORE_PROVIDER, "the services provider to use, either docker or static")
+}
 
 type ServiceStore interface {
 	services.ServiceStore
@@ -58,8 +72,11 @@ type ServiceStoreImpl struct {
 	Shutdown       utils.ShutdownSignalChannel
 }
 
-func NewServiceStore() ServiceStore {
-	return &ServiceStoreImpl{
+func NewServiceStore() (ServiceStore, error) {
+	glog.Infof("Initializing the services provider: %s", *provider)
+
+	/* step: create the services store */
+	service := &ServiceStoreImpl{
 		// channel to pass to providers
 		make(BackendServiceChannel, 5),
 		// a map of providers
@@ -68,6 +85,33 @@ func NewServiceStore() ServiceStore {
 		make([]services.ServiceEventsChannel, 0),
 		// shutdown signal for the service
 		make(utils.ShutdownSignalChannel)}
+
+	/* step: create and register the service provider */
+	switch *provider {
+	case "docker":
+		glog.Infof("Registering the docker services provider")
+		/* step: we use the default docker store for now */
+		if agent, err := AddDockerServiceStore(); err != nil {
+			glog.Errorf("Failed to add the docker service provider, error: %s", err)
+			return nil, err
+		} else {
+			service.AddServiceProvider(*provider, agent)
+		}
+	case "static":
+		glog.Infof("Registering the static services provider")
+		/* step: create the static services store */
+		if agent, err := AddStaticServiceProvider(); err != nil {
+			glog.Errorf("Failed to add the docker service provider, error: %s", err)
+			return nil, err
+		} else {
+			service.AddServiceProvider(*provider, agent)
+		}
+	default:
+		glog.Errorf("The services provider: %s is not supported, please check documentation" )
+		return nil, errors.New("The service provider: " + *provider + " is not supported")
+	}
+
+	return service, nil
 }
 
 func (r *ServiceStoreImpl) AddServiceListener(channel services.ServiceEventsChannel) {

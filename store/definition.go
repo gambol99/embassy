@@ -43,7 +43,7 @@ type DefinitionOperation int
 
 type DefinitionEvent struct {
 	SourceAddress, Name, Definition string
-	Operation                       DefinitionOperation
+	Operation DefinitionOperation
 }
 
 var (
