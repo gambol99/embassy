@@ -1,0 +1,44 @@
+#
+#   Author: Rohith (gambol99@gmail.com)
+#   Date: 2014-11-24 16:15:17 +0000 (Mon, 24 Nov 2014)
+#
+#  vim:ts=2:sw=2:et
+#
+# CoreOS Unit File
+#
+
+[Unit]
+Description=Embassy Proxy Service
+After=etcd.service
+After=docker.service
+Requires=etcd.service
+Requires=docker.service
+
+[Service]
+EnvironmentFile=/etc/environment
+TimeoutStartSec=0
+Restart=on-failure
+RestartSec=2
+ExecStartPre=-/usr/bin/docker kill embassy.proxy
+ExecStartPre=-/usr/bin/docker rm embassy.proxy
+ExecStartPre=-/usr/bin/chmod og+rw /var/run/docker.sock
+ExecStartPre=/usr/bin/docker pull gambol99/embassy
+ExecStart=/usr/bin/docker run --privileged=true --net=host \
+--name embassy.proxy \
+-e ENVIRONMENT=prod \
+-e NAME=embassy \
+-e SERVICE_NAME=embassy \
+-v /var/run/docker.sock:/var/run/docker.sock \
+gambol99/embassy \
+--dnat -v=3 -interface=eth0 \
+-discovery=consul://${COREOS_PRIVATE_IPV4}:8500 \
+-provider=docker
+
+ExecStop=/usr/bin/docker stop embassy.proxy
+
+[Install]
+WantedBy=multi-user.target
+
+[X-Fleet]
+Global=true
+
