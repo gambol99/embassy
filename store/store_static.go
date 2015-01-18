@@ -17,13 +17,13 @@ limitations under the License.
 package store
 
 import (
-	"flag"
 	"errors"
+	"flag"
 	"strings"
 
+	"github.com/gambol99/embassy/proxy"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
-	"github.com/gambol99/embassy/proxy"
 )
 
 var (
@@ -34,7 +34,7 @@ func init() {
 	static_services = flag.String("services", "", "a comma seperated list of services i.e frontend;80,mysql;3306 etc")
 }
 
-func AddStaticServiceProvider() (ServiceProvider,error) {
+func AddStaticServiceProvider() (ServiceProvider, error) {
 	/* step: check we have been passed the services field */
 	if *static_services == "" {
 		return nil, errors.New("You have specified any services to proxy, check usage menu")
@@ -42,12 +42,12 @@ func AddStaticServiceProvider() (ServiceProvider,error) {
 	/* step: we need to get the ip address */
 	address, err := utils.GetLocalIPAddress(*proxy.Proxy_interface)
 	if err != nil {
-		glog.Errorf("Failed to get the ip address of %s interface, error: %s", proxy.Proxy_interface, err )
+		glog.Errorf("Failed to get the ip address of %s interface, error: %s", proxy.Proxy_interface, err)
 		return nil, err
 	}
 
 	/* step: create the static services */
-	return &StaticServiceStore{*static_services,address}, nil
+	return &StaticServiceStore{*static_services, address}, nil
 }
 
 type StaticServiceStore struct {
@@ -72,7 +72,7 @@ func (r *StaticServiceStore) StreamServices(channel BackendServiceChannel) error
 		if definition.IsValid() {
 			definitions = append(definitions, definition)
 		} else {
-			glog.Errorf("The service definition: %s is invalid, please review", label )
+			glog.Errorf("The service definition: %s is invalid, please review", label)
 		}
 	}
 

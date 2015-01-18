@@ -159,7 +159,7 @@ func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
 		glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint)
 
 		/* step: attempt to connect to the backend */
-		outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout * time.Second)
+		outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout*time.Second)
 		if err != nil {
 			glog.Errorf("Failed to connect to backend service: %s, timeout: %d seconds, error: %s", endpoint, retryTimeout, err)
 			continue

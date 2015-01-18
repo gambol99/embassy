@@ -28,11 +28,11 @@ import (
 
 type ConsulClient struct {
 	/* the consul api client */
-	Client    *consulapi.Client
+	Client *consulapi.Client
 	/* the current wait index */
 	WaitIndex uint64
 	/* the kill off */
-	KillOff   bool
+	KillOff bool
 }
 
 const (

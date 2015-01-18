@@ -25,7 +25,9 @@ import (
 )
 
 type LoadBalancerRR struct {
-	sync.RWMutex
+	/* the lock for the index */
+	sync.Mutex
+	/* the index for the next endpoint */
 	NextEndpointIndex int
 }
 
@@ -47,11 +49,6 @@ func (lb *LoadBalancerRR) SelectEndpoint(endpoints []endpoints.Endpoint) (endpoi
 	return endpoint, nil
 }
 
-func (lb *LoadBalancerRR) UpdateEndpoints(endpoints []endpoints.Endpoint) {
+func (lb *LoadBalancerRR) UpdateEndpoints([]endpoints.Endpoint) {
 	glog.V(6).Infof("lb (rr) : updating the endpoints")
-	if len(endpoints) > 0 {
-		lb.Lock()
-		defer lb.Unlock()
-		lb.NextEndpointIndex = 0
-	}
 }

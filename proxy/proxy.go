@@ -44,7 +44,9 @@ var (
 )
 
 type ProxyService interface {
+	/* shutdown the proxy service */
 	Close()
+	/* start handling the events */
 	Start() error
 }
 
@@ -56,12 +58,10 @@ type ProxyStore struct {
 	/* channel for shutdown down */
 	Shutdown utils.ShutdownSignalChannel
 	/* the services store */
-	Store 	 services.ServiceStore
+	Store services.ServiceStore
 }
 
-/*
-Create the proxy service - the main routine for handling requests and events
-*/
+/* Create the proxy service - the main routine for handling requests and events */
 func NewProxyService(store services.ServiceStore) (ProxyService, error) {
 	glog.Infof("Initializing the ProxyService")
 
@@ -86,21 +86,6 @@ func NewProxyService(store services.ServiceStore) (ProxyService, error) {
 	service.Shutdown = make(utils.ShutdownSignalChannel)
 	service.Listener = listener
 	return service, nil
-}
-
-/* --------------- Proxy ID ------------------- */
-type ProxyID string
-
-func (p *ProxyID) String() string {
-	return fmt.Sprintf("proxyId: %s", *p)
-}
-
-func GetProxyIDByConnection(source, port string) ProxyID {
-	return ProxyID(fmt.Sprintf("%s:%s", source, port))
-}
-
-func GetProxyIDByService(si *services.Service) ProxyID {
-	return ProxyID(fmt.Sprintf("%s:%d", si.Consumer, si.Port))
 }
 
 /* --------------- Proxy Service -------------- */
@@ -131,9 +116,10 @@ func (px *ProxyStore) Start() error {
 		return err
 	}
 
-	/* step: the main event loop for the proxy service;
-	- listening for service events
-	- listening for shutdown requests
+	/*
+		step: the main event loop for the proxy service;
+		  - listening for service events
+		  - listening for shutdown requests
 	*/
 	for {
 		select {
@@ -165,22 +151,22 @@ func (px *ProxyStore) ProcessServiceEvent(event *services.ServiceEvent) error {
 }
 
 /*
-- Wait for connections on the tcp listener
-- Get the original port before redirection
-- Lookup the service proxy for this service (src_ip + original_port)
-- Pass the connection to the in a go handler
+  - Wait for connections on the tcp listener
+  - Get the original port before redirection
+  - Lookup the service proxy for this service (src_ip + original_port)
+  - Pass the connection to the in a go handler
 */
 func (px *ProxyStore) ProxyConnections() error {
 	glog.V(5).Infof("Starting to listen for incoming connections")
 	go func() {
 		for {
-			/* wait for a connection */
+			/* step: wait for a connection */
 			conn, err := px.Listener.Accept()
 			if err != nil {
 				glog.Errorf("Failed to accept connection, error: %s", err)
 				continue
 			}
-			/* handle the rest with in go routine and return to pick up another connection */
+			/* step: handle the rest with in go routine and return to pick up another connection */
 			go func(connection *net.TCPConn) {
 				/* step: get the destination port and source ip address */
 				source_ipaddress, _, err := net.SplitHostPort(connection.RemoteAddr().String())
@@ -198,6 +184,7 @@ func (px *ProxyStore) ProxyConnections() error {
 
 				glog.V(5).Infof("Accepted TCP connection from %v to %v, original port: %s",
 					connection.RemoteAddr(), connection.LocalAddr(), original_port)
+
 				/* step: create a proxyId for this */
 				proxyId := GetProxyIDByConnection(source_ipaddress, original_port)
 
@@ -222,20 +209,18 @@ func (px *ProxyStore) ProxyConnections() error {
 	return nil
 }
 
-/*
-Derive the original port from the tcp header
-*/
+/* Derive the original port from the tcp header */
 func (px *ProxyStore) GetOriginalPort(conn *net.TCPConn) (string, error) {
 	descriptor, err := conn.File()
 	if err != nil {
 		glog.Errorf("Unable to get tcp descriptor, connection: %s, error: ", conn.RemoteAddr(), err)
 		return "", err
 	}
-	addr, err := syscall.GetsockoptIPv6Mreq(int(descriptor.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
-	if err != nil {
+	if addr, err := syscall.GetsockoptIPv6Mreq(int(descriptor.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST); err != nil {
 		glog.Errorf("Unable to get the original destination port for connection: %s, error: %s", conn.RemoteAddr(), err)
 		return "", err
+	} else {
+		destination := uint16(addr.Multiaddr[2])<<8 + uint16(addr.Multiaddr[3])
+		return strconv.Itoa(int(destination)), nil
 	}
-	destination := uint16(addr.Multiaddr[2])<<8 + uint16(addr.Multiaddr[3])
-	return strconv.Itoa(int(destination)), nil
 }

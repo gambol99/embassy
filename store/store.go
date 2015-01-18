@@ -18,11 +18,11 @@ package store
 
 import (
 	"errors"
+	"flag"
 
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
-	"flag"
 )
 
 const (
@@ -107,7 +107,7 @@ func NewServiceStore() (ServiceStore, error) {
 			service.AddServiceProvider(*provider, agent)
 		}
 	default:
-		glog.Errorf("The services provider: %s is not supported, please check documentation" )
+		glog.Errorf("The services provider: %s is not supported, please check documentation")
 		return nil, errors.New("The service provider: " + *provider + " is not supported")
 	}
 

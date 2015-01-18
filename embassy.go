@@ -19,13 +19,13 @@ import (
 	"flag"
 	"os"
 	"runtime"
+	"syscall"
+	"os/signal"
 
 	"github.com/gambol99/embassy/proxy"
 	"github.com/gambol99/embassy/store"
 	"github.com/golang/glog"
 )
-
-
 
 func main() {
 	flag.Parse()
@@ -35,26 +35,28 @@ func main() {
 	glog.Infof("Starting the Embassy Docker Service Proxy, version: %s", Version)
 
 	/* step: create the services store */
-	services, err := store.NewServiceStore()
-	if err != nil {
-		glog.Errorf("Failed to create the service provider, error: %s", err )
+	if services, err := store.NewServiceStore(); err != nil {
+		glog.Errorf("Failed to create the service provider, error: %s", err)
 		os.Exit(1)
-	}
-
-	/* step: create the proxy service */
-	if service, err := proxy.NewProxyService(services); err != nil {
-		glog.Errorf("Failed to create the proxy service, error: %s", err)
-		return
 	} else {
-		done := make(chan bool)
-		go func() {
-			if err := service.Start(); err != nil {
-				glog.Errorf("Failed to start the proxy service, error: %s", err)
-				return
-			}
-			done <- true
-		}()
-		<-done
-		glog.Infof("Exitting the proxy service ")
+		/* step: create the proxy service */
+		if service, err := proxy.NewProxyService(services); err != nil {
+			glog.Fatalf("Failed to create the proxy service, error: %s", err)
+		} else {
+			go func() {
+				if err := service.Start(); err != nil {
+					glog.Fatalf("Failed to start the proxy service, error: %s", err)
+				}
+				os.Exit(1)
+			}()
+		}
+
+		/* step: setup the channel for shutdown signals */
+		signalChannel := make(chan os.Signal)
+		signal.Notify(signalChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+		/* step: wait on the signal */
+		<-signalChannel
+		glog.Infof("Recieved a kill signal, exitting")
 	}
 }
