@@ -80,7 +80,7 @@ setup_iptables() {
 case $1 in
   --dnat)     NETWORK_MODE="DNAT"
               NETWORK_CHIAN="PREROUTING"
-
+              shift 1
               ;;
   --redirect) NETWORK_MODE="REDIRECT"
               NETWORK_CHIAN="OUTPUT"
