@@ -2,7 +2,7 @@
 [![Build Status](https://drone.io/github.com/gambol99/embassy/status.png)](https://drone.io/github.com/gambol99/embassy/latest)
 
 ### **Embassy**
-Is a service proxy for docker containers, which uses either etcd/consul for service endpoint discovery. It can be run in the following modes;
+Is a service proxy / load balancer for docker container services, using etcd | consul for service endpoint discovery. Presently it can be run on the following modes; 
 
 >   - run locally inside the container as seperate service
 >   - (recommended) run on the docker host it self and use port mapping between host and container to permit the services
