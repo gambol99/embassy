@@ -94,16 +94,16 @@ func (ds EndpointsStoreService) Close() {
 
 func (ds *EndpointsStoreService) Synchronize() error {
 	glog.V(3).Infof("Synchronize the endpoints for service: %s", ds.Service)
-	ds.Lock()
-	defer ds.Unlock()
 	endpoints, err := ds.Provider.List(&ds.Service)
 	if err != nil {
 		glog.Errorf("Attempt to resynchronize the endpoints failed for service: %s, error: %s", ds.Service, err)
 		return errors.New("Failed to resync the endpoints")
 	}
+	glog.V(5).Infof("Updating the endpoints for service: %s, endpoints: %s", ds.Service, ds.Endpoints)
+	ds.Lock()
+	defer ds.Unlock()
 	/* step: we register any new endpoints - using the endpoint id as key into the map */
 	ds.Endpoints = endpoints
-	glog.V(5).Infof("Updating the endpoints for service: %s, endpoints: %s", ds.Service, ds.Endpoints)
 	return nil
 }
 
