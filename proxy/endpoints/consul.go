@@ -116,19 +116,22 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 
 func (r *ConsulClient) List(si *services.Service) ([]Endpoint, error) {
 	glog.V(5).Infof("Retrieving a list of the endpoints for service: %s", si)
-	catalog := r.Client.Catalog()
-	services, _, err := catalog.Service(si.Name, "", &consulapi.QueryOptions{})
-	if err != nil {
+	/* step: query for the service, along with health checks */
+	if services, _, err := r.Client.Health().Service(si.Name, "", true, &consulapi.QueryOptions{}); err != nil {
 		glog.Errorf("Failed to retrieve a list of services for service: %s", si)
 		return nil, err
+	} else {
+		list := make([]Endpoint, 0)
+		/* step: iterate the CatalogService and pull the endpoints */
+		for _, service := range services {
+			service_address := service.Node.Address
+			service_port := service.Service.Port
+			endpoint := Endpoint(fmt.Sprintf("%s:%d", service_address, service_port))
+			list = append(list, endpoint)
+		}
+		glog.V(8).Infof("Retrieved the list of endpoints for service: %s, endpoint: %s", si.Name, list)
+		return list, nil
 	}
-	list := make([]Endpoint, 0)
-	/* step: iterate the CatalogService and pull the endpoints */
-	for _, service := range services {
-		endpoint := Endpoint(fmt.Sprintf("%s:%d", service.Address, service.ServicePort))
-		list = append(list, endpoint)
-	}
-	return list, nil
 }
 
 func (r *ConsulClient) Close() {
