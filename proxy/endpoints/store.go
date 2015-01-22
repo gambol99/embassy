@@ -25,7 +25,7 @@ import (
 	"github.com/golang/glog"
 )
 
-/* an endpoint is ip+port */
+/* an endpoint is ip:port */
 type Endpoint string
 
 /* a channel used by the provider to say something has changed */
@@ -127,7 +127,7 @@ func (ds *EndpointsStoreService) WatchEndpoints() {
 					/* step: update our endpoints */
 					ds.Synchronize()
 					/* step: push the event to the listeners */
-					go ds.PushEventToListeners(update)
+					ds.PushEventToListeners(update)
 				case <-ds.Shutdown:
 					glog.Infof("Shutting down the provider for service: %s", ds.Service)
 					/* step: push downstream the kill signal to provider */
