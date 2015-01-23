@@ -31,7 +31,7 @@ func NewEndpointsService(discovery string, si services.Service) (EndpointsStore,
 	/* step: check if the store provider is supported */
 	endpoints := new(EndpointsStoreService)
 	endpoints.Service = si
-	endpoints.Endpoints = make([]Endpoint, 0)
+	endpoints.Endpoints = nil
 	endpoints.Listeners = make([]EndpointEventChannel, 0)
 	endpoints.Shutdown = make(utils.ShutdownSignalChannel)
 
