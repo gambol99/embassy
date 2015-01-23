@@ -25,7 +25,6 @@ import (
 
 	docker "github.com/gambol99/go-dockerclient"
 	"github.com/golang/glog"
-	"strconv"
 )
 
 const (
@@ -35,18 +34,16 @@ const (
 	DOCKER_DESTROY          = "destroy"
 	DOCKER_CONTAINER_PREFIX = "container:"
 	DEFAULT_DOCKER_SOCKET   = "unix:///var/run/docker.sock"
-	DEFAULT_BACKEND_PREFIX  = "^BACKEND_"
-	DEFAULT_PROXY_GROUP_ID  = 0
+	DEFAULT_BACKEND_PREFIX  = "BACKEND_"
 )
 
 var (
-	docker_socket *string
-	proxy_groupId *int
+	docker_socket, service_prefix *string
 )
 
 func init() {
-	docker_socket = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
-	proxy_groupId = flag.Int("id", DEFAULT_PROXY_GROUP_ID, "the proxy group id which the proxy is responsible for")
+	docker_socket  = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
+	service_prefix = flag.String("prefix", DEFAULT_BACKEND_PREFIX, "the prefix used to distinguish a backend service")
 }
 
 type DockerServiceStore struct {
@@ -276,21 +273,8 @@ func (r DockerServiceStore) GetContainerIPAddress(container *docker.Container) (
 	}
 }
 
-func (r DockerServiceStore) IsProxyGroupID(key, value string) (id int, err error) {
-	if found := strings.HasPrefix(key, "PROXY_GROUP_ID"); found {
-		/* step: convert the value to an integer */
-		if proxyId, err := strconv.Atoi(value); err != nil {
-			glog.Errorf("Unable to convert the proxy group id: %s, error: %s", value, err)
-			return 0, err
-		} else {
-			return proxyId, nil
-		}
-	}
-	return 0, nil
-}
-
 func (r DockerServiceStore) IsBackendService(key string) (found bool) {
-	found, _ = regexp.MatchString(DEFAULT_BACKEND_PREFIX, key)
+	found, _ = regexp.MatchString("^+" + *service_prefix, key)
 	return
 }
 

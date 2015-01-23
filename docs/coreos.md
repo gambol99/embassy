@@ -1,13 +1,8 @@
-# CoreOS Vagrant Demo
+## **CoreOS Vagrant Demo**
 
 An example setup for testing / demoing the Embassy Proxy
 
-***
-## Installation
-
-
-----------
-
+#### **Installation**
   
     # Clone the https://github.com/gambol99/coreos-vagrant
     $ git clone https://github.com/gambol99/coreos-vagrant
@@ -33,10 +28,7 @@ An example setup for testing / demoing the Embassy Proxy
     $ fleetctl list-machines
 
 
-----------
-
-Services
---------
+#### **Services**
 
 There are a number of CoreOS service units in the [coreos-vagrant](https://github.com/gambol99/coreos-vagrant) repository, located under services/ directory. Before we can use  the proxy we need some mean of service registration.
 For the purpose of the demo we'll be using [registrator](https://github.com/progrium/registrator) agent.
@@ -83,9 +75,7 @@ For the purpose of the demo we'll be using [registrator](https://github.com/prog
     # -- and again wait on the fleetclt list-units until service is up
 
 
-----------
-
-## Testing ##
+#### **Testing**
   
     # Now lets push some services in to the cluster
     $ for i in {1..3}; do fleetctl start apache@${i}.service; done
@@ -170,7 +160,7 @@ For the purpose of the demo we'll be using [registrator](https://github.com/prog
      100%     34 (longest request)
 
 
-  # If you want to multiple backend services simple add multiple -e BACKEND_NAME=<key> environment variables or place then in the Dockerfile
+    # If you want to multiple backend services simple add multiple -e BACKEND_NAME=<key> environment variables or place then in the Dockerfile
 
 
 

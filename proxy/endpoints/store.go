@@ -18,14 +18,15 @@ package endpoints
 
 import (
 	"errors"
-	"sync"
+	"unsafe"
+	"sync/atomic"
 
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
 
-/* an endpoint is ip+port */
+/* an endpoint is ip:port */
 type Endpoint string
 
 /* a channel used by the provider to say something has changed */
@@ -45,14 +46,12 @@ type EndpointsStore interface {
 }
 
 type EndpointsStoreService struct {
-	/* locking used to control access to the endpoints */
-	sync.RWMutex
 	/* the service agent is running for */
 	Service services.Service
 	/* the backend provider - etcd | consul | something else */
 	Provider EndpointsProvider
 	/* the current list of endpoints for this service */
-	Endpoints []Endpoint
+	Endpoints unsafe.Pointer
 	/* channel for listeners on endpoints */
 	Listeners []EndpointEventChannel
 	/* channel for shutdown signal */
@@ -64,11 +63,9 @@ func (r *EndpointsStoreService) AddEventListener(channel EndpointEventChannel) {
 	r.Listeners = append(r.Listeners, channel)
 }
 
-func (ds *EndpointsStoreService) ListEndpoints() (endpoints []Endpoint, err error) {
+func (ds *EndpointsStoreService) ListEndpoints() ([]Endpoint,error) {
 	/* step: pull a list of paths from the backend */
-	ds.RLock()
-	defer ds.RUnlock()
-	return ds.Endpoints, nil
+	return *(*[]Endpoint)(atomic.LoadPointer(&ds.Endpoints)), nil
 }
 
 func (ds *EndpointsStoreService) PushEventToListeners(event EndpointEvent) {
@@ -99,11 +96,8 @@ func (ds *EndpointsStoreService) Synchronize() error {
 		glog.Errorf("Attempt to resynchronize the endpoints failed for service: %s, error: %s", ds.Service, err)
 		return errors.New("Failed to resync the endpoints")
 	}
-	glog.V(5).Infof("Updating the endpoints for service: %s, endpoints: %s", ds.Service, ds.Endpoints)
-	ds.Lock()
-	defer ds.Unlock()
 	/* step: we register any new endpoints - using the endpoint id as key into the map */
-	ds.Endpoints = endpoints
+	atomic.StorePointer(&ds.Endpoints,unsafe.Pointer(&endpoints))
 	return nil
 }
 
@@ -127,7 +121,7 @@ func (ds *EndpointsStoreService) WatchEndpoints() {
 					/* step: update our endpoints */
 					ds.Synchronize()
 					/* step: push the event to the listeners */
-					go ds.PushEventToListeners(update)
+					ds.PushEventToListeners(update)
 				case <-ds.Shutdown:
 					glog.Infof("Shutting down the provider for service: %s", ds.Service)
 					/* step: push downstream the kill signal to provider */
