@@ -56,23 +56,37 @@ At present networking is perform in one of one two; if we are running the servic
 
 - You already have some means of service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) if not)
 
-        # docker run -d --privileged=true --net=host -e INTERFACE=[HOST-IFACED] -v \
-        /var/run/docker.sock:/var/run/docker.sock -e DISCOVERY="etcd://HOST:4001" gambol99/embassy
+        # docker run -d --privileged=true --net=host 
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        gambol99/embassy \
+        --dnat -provider=docker \
+        -v=3 -interface=eth0 \
+        -discovery=etcd://HOST:4001
 
 When the docker boot is will create a iptables entry for DNAT all traffic from 172.17.42.1 to HOST_IFACE:9999. Check the stage/startup.sh if you wish to alter this
 
 - Service discovery has registered mutiple containers for a service, say 'app1' in the backend
 
-        /services/prod/app1/80/49173/e6d41829bd76   <- instance
-        /services/prod/app1/80/49175
-        /services/prod/app1/80/49175/9fb514731beb   <- instance
-        /services/prod/app1/80/49177
-        /services/prod/app1/80/49177/6b06da408f97   <- instance
+            /services/prod/frontend/frontend_http/31000
+            /services/prod/frontend/frontend_http/31000/47861e964ca5 <-instance
+            /services/prod/frontend/frontend_http/31000/67c6fccb40d0 <-instance
+            /services/prod/frontend/frontend_http/31000/cd52b6deca96 <-instance
+            /services/prod/frontend/frontend_http/31002
+            /services/prod/frontend/frontend_https
+            /services/prod/frontend/frontend_https/31001
+            /services/prod/frontend/frontend_https/31001/47861e964ca5 <-instance
+            /services/prod/frontend/frontend_https/31001/67c6fccb40d0 <-instance
+            /services/prod/frontend/frontend_https/31001/cd52b6deca96 <-instance
+            /services/prod/frontend/frontend_https/31003
 
-- Now you want your frontend box to be connected with with app1
+- Now you want your frontend box to be connected with with app1 on port 80
 
-        # docker run -d -P BACKEND_APP1="/services/prod/app1/80;80" app1
-        # curl 172.17.42.1
+            # docker run -d -P BACKEND_APP1="/services/prod/frontend/frontend_http;80" app1
+            # curl 172.17.42.1 
+            <html><body><h1>It works!</h1>
+            <p>This is the default web page for this server.</p>
+            <p>The web server software is running but no content has been added, yet.</p>
+            </body></html>
 
 ##### **Embassy will**;
 
@@ -82,17 +96,6 @@ When the docker boot is will create a iptables entry for DNAT all traffic from 1
 > - proxy any connections made to proxy:80 within app1 via a load balancer (default is round robin - or least connections) over to the endpoints.
 > (Note: these ports are overlaying, thus another container is allowed to map another service to the same binding proxy:80 but can be redirected to a completely different place)
 > - naturally, if the endpoints are changed, updated or removed the changes are propagated to the proxy
-
-
-Alternative are run the proxy inside a container, link the other containers and use iptables to redirect ports
-
-      # ./embassy -interface eth0 -discovery 'etcd://HOST:PORT' -v=0 -p=9999
-      # iptables -t nat -I PREROUTING -p tcp -d 172.17.42.1 -j DNAT --to-destination HOST:3232
-
-      OR on the docker0 interface directly
-
-      # ./embassy -interface docker0 -discovery 'etcd://HOST:PORT' -v=0 -p=3232
-      # iptables -t nat -I PREROUTING -p tcp -d 172.17.42.1 -j REDIRECT --to-ports 3232
 
 Note: mutiple services are simple added by placing additional environment variables
 
@@ -118,7 +121,7 @@ The descriptor itself has the following format;
 
 #### **QuickStart**
 
-Take a look at wiki showing a [CoreOS](https://github.com/gambol99/embassy/tree/master/docs) example.
+Take a look at the documentation showing a [CoreOS](https://github.com/gambol99/embassy/tree/master/docs) usage for a more complete example.
 
 ### **Discovery Agent**
 
