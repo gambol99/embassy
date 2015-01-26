@@ -58,7 +58,7 @@
 		},
 		{
 			"ImportPath": "github.com/gambol99/go-dockerclient",
-			"Rev": "b8f184f79bca0f869c216a8ae6482ec1b3ddcfd1"
+			"Rev": "3e0433dfa78a594ed14164acbc3d39d6fa323c4d"
 		},
 		{
 			"ImportPath": "github.com/golang/glog",
