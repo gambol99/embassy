@@ -19,6 +19,7 @@ package endpoints
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"strings"
 	"time"
@@ -35,6 +36,16 @@ type EtcdClient struct {
 	KillOff  bool
 }
 
+var EtcdOptions struct {
+	cert_file, key_file, cacert_file string
+}
+
+func init() {
+	flag.StringVar(&EtcdOptions.cert_file, "etcd-cert", "", "the etcd certificate file (optional)")
+	flag.StringVar(&EtcdOptions.key_file, "etcd-keycert", "", "the etcd key certificate file (optional)")
+	flag.StringVar(&EtcdOptions.cacert_file, "etcd-cacert", "", "the etcd ca certificate file (optional)")
+}
+
 const (
 	ETCD_PREFIX = "etcd://"
 )
@@ -42,9 +53,22 @@ const (
 func NewEtcdStore(uri string) (EndpointsProvider, error) {
 	glog.V(3).Infof("Creating a Etcd client, hosts: %s", uri)
 	/* step: get the etcd nodes from the discovery uri */
-	return &EtcdClient{
-		etcd.NewClient(GetEtcdHosts(uri)),
-		make(utils.ShutdownSignalChannel), false}, nil
+	service := new(EtcdClient)
+	if EtcdOptions.cert_file != "" {
+		/* step: create a tls connection */
+		client, err := etcd.NewTLSClient(GetEtcdHosts(uri), EtcdOptions.cert_file,
+			EtcdOptions.key_file, EtcdOptions.cacert_file )
+		if err != nil {
+			glog.Errorf("Failed to create a TLS connection to etcd: %s, error: %s", uri, err )
+			return nil, err
+		}
+		service.Client = client
+	} else {
+		service.Client = etcd.NewClient(GetEtcdHosts(uri))
+	}
+	service.Shutdown = make(utils.ShutdownSignalChannel)
+	service.KillOff = false
+	return service, nil
 }
 
 func (r *EtcdClient) Close() {
