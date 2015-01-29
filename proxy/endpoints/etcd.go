@@ -184,11 +184,15 @@ func (e *EtcdClient) Paths(path string, paths *[]string) ([]string, error) {
 
 func GetEtcdHosts(uri string) []string {
 	hosts := make([]string, 0)
+	protocol := "http"
+	if EtcdOptions.cacert_file != "" {
+		protocol = "https"
+	}
 	for _, etcd_host := range strings.Split(uri, ",") {
 		if strings.HasPrefix(etcd_host, ETCD_PREFIX) {
 			etcd_host = strings.TrimPrefix(etcd_host, ETCD_PREFIX)
 		}
-		hosts = append(hosts, "http://"+etcd_host)
+		hosts = append(hosts, fmt.Sprintf("%s://%s", protocol, etcd_host))
 	}
 	return hosts
 }
