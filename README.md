@@ -162,11 +162,19 @@ An example of the service document (i.e. the etcd ) /services/prod/apache/80/491
       "path": "/services/prod/apache/80/49161/13532987eae2"
     }
 
-Discovery will then read these and produce an endpoint of 192.168.13.90:49161
+Discovery will then read these and produce an endpoint of 192.168.13.90:49161.
+
+##### **Etcd Certificates**
+
+You can use the etcd tls support by passing the paths for the key, cert and cacert on the command line options
+
+      -etcd-cacert="": the etcd ca certificate file (optional)
+      -etcd-cert="": the etcd certificate file (optional)
+      -etcd-keycert="": the etcd key certificate file (optional)
 
 #### **Consul Notes**
 
-The consul agent watches for changes on services; the manner in which you get the services registered once again is up to you, though take a look at [registrator](https://github.com/progrium/registrator) if you've not got something in place already.
+The consul agent watches for changes on catalog services; the manner in which you get the services registered once again is up to you, though take a look at [registrator](https://github.com/progrium/registrator) if you've not got something in place already. Note, the endpoints filtered so only those passing the health checks are returned.
     
       $ ./embassy -interface eth0 -discovery 'consul://HOST:8500' -v=3 -p=9999
       # (assuming registrator and a consul cluster is already at hand)
