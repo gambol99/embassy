@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/proxy/endpoints"
 	"github.com/gambol99/embassy/proxy/loadbalancer"
 	"github.com/gambol99/embassy/proxy/services"
@@ -54,7 +55,7 @@ type Proxier struct {
 }
 
 func NewServiceProxy(si services.Service) (ServiceProxy, error) {
-	glog.Infof("Initializing a new service proxy for service: %s, discovery: %s", si, *Discovery_url)
+	glog.Infof("Initializing a new service proxy for service: %s, discovery: %s", si, config.Options.Discovery_url)
 	/* step: creating the service proxy */
 	proxy := new(Proxier)
 	proxy.Service = si
@@ -66,7 +67,7 @@ func NewServiceProxy(si services.Service) (ServiceProxy, error) {
 		proxy.Balancer = balancer
 	}
 	/* step: create a endpoints store for this service */
-	if endpoints, err := endpoints.NewEndpointsService(*Discovery_url, si); err != nil {
+	if endpoints, err := endpoints.NewEndpointsService(config.Options.Discovery_url, si); err != nil {
 		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", si, err)
 		return nil, err
 	} else {

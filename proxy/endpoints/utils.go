@@ -48,7 +48,9 @@ func NewEndpointsService(discovery string, si services.Service) (EndpointsStore,
 	case "etcd":
 		provider, err = NewEtcdStore(discovery)
 	case "consul":
-		provider, err = NewConsulClent(discovery)
+		provider, err = NewConsulClient(discovery)
+	case "marathon":
+		provider, err = NewMarathonClient(discovery)
 	default:
 		glog.Errorf("Failed to create endpoints agent, the backend: %s is not supported", discovery)
 		return nil, errors.New("Unsupported backend " + discovery)

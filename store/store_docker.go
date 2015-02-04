@@ -34,7 +34,6 @@ const (
 	DOCKER_DESTROY          = "destroy"
 	DOCKER_CONTAINER_PREFIX = "container:"
 	DEFAULT_DOCKER_SOCKET   = "unix:///var/run/docker.sock"
-	DEFAULT_BACKEND_PREFIX  = "BACKEND_"
 )
 
 var (
@@ -43,7 +42,6 @@ var (
 
 func init() {
 	docker_socket  = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
-	service_prefix = flag.String("prefix", DEFAULT_BACKEND_PREFIX, "the prefix used to distinguish a backend service")
 }
 
 type DockerServiceStore struct {

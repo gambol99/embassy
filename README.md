@@ -10,6 +10,14 @@ Is a service proxy / load balancer for docker container services, using etcd | c
 
 Embassy run is a single tcp port with iptables dnatting the destination and port over to the proxy from the virtual proxy ip (namely the docker0 interface ip)
 
+#### **Service Endpoint Discovery**
+
+Embassy presently supports the following providers to pull endpoints from. Note; how you get your endpoint *into* them is up to you, though examples reference in this README list a couple ways.
+
+>   - [Consul](https://consul.io)
+>   - [Etcd](https://github.com/coreos/etcd)
+>   - [Marathon](http://mesosphere.com)
+
 #### **Service Providers**
 
 At present embassy supports two service providers;
@@ -112,10 +120,12 @@ The descriptor itself has the following format;
 
     BACKEND_NAME=<SERVICE_NAME>;<PORT>
 
-    consul example
+    consul
     BACKEND_REDIS_SERVICE=redis.master;6379
-    or using etcd keys
+    etcd
     BACKEND_REDIS_SERVICE=/services/prod/redis.master;6379
+    marathon
+    BACKEND_REDOES_SERVICE=/prod/redis.master/6379;6379  # view the notes for Marathon
 
 --------------
 
@@ -183,3 +193,50 @@ The consul agent watches for changes on catalog services; the manner in which yo
       $ docker run -ti --rm -e BACKEND_APACHE_80='frontend_http;80' centos /bin/bash
       [e6d41829bd76] $ curl 172.17.42.1
 
+
+#### **Marathon Notes**
+
+In order to use Marathon as a service discovery provider you need to enable the events callback service via --event_subscriber [http_callback](http://mesosphere.github.io/marathon/docs/event-bus.html), which is obviously accessible by the docker host embassy is running on (Honestly!, someone did this!). The service definitions for service binding using marathon is somewhat different due to the nature of how marathon represents the application internally; where as Consul and the Etcd (albeit via the service-registrar in this case) divides the services by port, Marathon has no notion of this, a service or application in Marathon has port mappings for a selection of ports, there's no means to divide one from the other by name. Thus in the service definition we need to explicitly say the *container* port (not the dynamic port) which we wish to proxy to. Example; curl from the http://10.241.1.71:8080/v2/apps/product/web/frontend/tasks
+
+        {
+          "tasks": [
+            {
+              "appId": "/product/web/frontend",
+              "id": "product_web_frontend.62e0f275-ac83-11e4-97af-ca6bcbbf53a9",
+              "host": "10.241.1.72",
+              "ports": [
+                31000,
+                31001
+              ],
+              "startedAt": "2015-02-04T15:35:03.892Z",
+              "stagedAt": "2015-02-04T15:35:02.757Z",
+              "version": "2015-02-04T15:35:00.811Z",
+              "servicePorts": [
+                80,
+                443
+              ]
+            },
+            {
+              "appId": "/product/web/frontend",
+              "id": "product_web_frontend.62e0a453-ac83-11e4-97af-ca6bcbbf53a9",
+              "host": "10.241.1.61",
+              "ports": [
+                31000,
+                31001
+              ],
+              "startedAt": "2015-02-04T15:35:04.484Z",
+              "stagedAt": "2015-02-04T15:35:02.754Z",
+              "version": "2015-02-04T15:35:00.811Z",
+              "servicePorts": [
+                80,
+                443
+              ]
+            }
+          ]
+        }
+
+ So in order to create a proxy to say port 80 we'd use;
+
+        BACKEND_FRONTEND_HTTP=/product/web/frontend/80;8080
+
+        # i.e. map me 172.17.42.1:8080 -> |ENDPOINTS|:80
