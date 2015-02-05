@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gambol99/embassy/config"
 	docker "github.com/gambol99/go-dockerclient"
 	"github.com/golang/glog"
 )
@@ -37,7 +38,7 @@ const (
 )
 
 var (
-	docker_socket, service_prefix *string
+	docker_socket *string
 )
 
 func init() {
@@ -272,7 +273,7 @@ func (r DockerServiceStore) GetContainerIPAddress(container *docker.Container) (
 }
 
 func (r DockerServiceStore) IsBackendService(key string) (found bool) {
-	found, _ = regexp.MatchString("^+" + *service_prefix, key)
+	found, _ = regexp.MatchString("^+" + config.Options.Service_prefix, key)
 	return
 }
 

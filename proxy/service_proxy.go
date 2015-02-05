@@ -54,21 +54,23 @@ type Proxier struct {
 	Shutdown utils.ShutdownSignalChannel
 }
 
-func NewServiceProxy(si services.Service) (ServiceProxy, error) {
-	glog.Infof("Initializing a new service proxy for service: %s, discovery: %s", si, config.Options.Discovery_url)
+func NewServiceProxy(service services.Service) (ServiceProxy, error) {
+	glog.Infof("Initializing a new service proxy for service: %s, discovery: %s", service, config.Options.Discovery_url)
+
 	/* step: creating the service proxy */
 	proxy := new(Proxier)
-	proxy.Service = si
+	proxy.Service = service
 	proxy.Shutdown = make(utils.ShutdownSignalChannel)
 	if balancer, err := loadbalancer.NewLoadBalancer("rr"); err != nil {
-		glog.Errorf("Failed to create load balancer for proxier, service: %s, error: %s", si, err)
+		glog.Errorf("Failed to create load balancer for proxier, service: %s, error: %s", service, err)
 		return nil, err
 	} else {
 		proxy.Balancer = balancer
 	}
+
 	/* step: create a endpoints store for this service */
-	if endpoints, err := endpoints.NewEndpointsService(config.Options.Discovery_url, si); err != nil {
-		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", si, err)
+	if endpoints, err := endpoints.NewEndpointsService(config.Options.Discovery_url, service); err != nil {
+		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", service, err)
 		return nil, err
 	} else {
 		proxy.Endpoints = endpoints
@@ -77,6 +79,7 @@ func NewServiceProxy(si services.Service) (ServiceProxy, error) {
 		/* step: start the discovery agent watcher */
 		proxy.Endpoints.WatchEndpoints()
 	}
+
 	/* step: handle the events */
 	proxy.ProcessEvents()
 	return proxy, nil
