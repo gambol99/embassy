@@ -3,7 +3,7 @@
 
 ### **Embassy**
 
-Is a service proxy / load balancer for docker container services, using etcd | consul for service endpoint discovery. Presently it can be run on the following modes; 
+Is a service proxy | load balancer for docker container services, using etcd | consul | marathon for service endpoint discovery. Presently it can be run on the following modes; 
 
 >   - run locally inside the container as seperate service
 >   - (recommended) run on the docker host it self and use port mapping between host and container to permit the services
@@ -22,17 +22,16 @@ Embassy presently supports the following providers to pull endpoints from. Note;
 
 #### **Service Providers**
 
-
 At present embassy supports two service providers;
 
-> **Docker services**: we read the services and backend requests when a container is started. Note, we also perform a initial listing during startup (so anything already running and requesting backends is processed). Naturally, we need access to the docker socket to listen to events.
+> **Docker services**: reads the services and backend requests from the environment variables when a container is started . Note, an initial listing is taken during startup, so anything already running and requesting backends is processed.
 
 > **Static services**: the service requests are read from the command line when embassy is started up
 
 #### **Docker Usage**
 ------
 
-At present networking is perform in one of one two; if we are running the service proxy on the docker host, we'd have to DNAT *(i.e. --dnat)* between the containers and the parent host, alternatively if we are running the service with a container or using docker links we can use iptables redirect --redirect. Check the startup.sh in stage/  to see the code.
+At present networking is perform in one of two ways; if we are running the service proxy on the docker host, we'd have to DNAT *(i.e. --dnat)* between the containers and the parent host, alternatively if we are running the service with a container or using docker links we can use iptables redirect --redirect. Check the startup.sh in stage/  to see the code.
 
       # a) Running the service proxy on the docker host itself
       #
@@ -66,7 +65,7 @@ At present networking is perform in one of one two; if we are running the servic
 
 #### **Example Usage**
 
-- You already have some means of service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) if not)
+- You already have some means of service discovery, registering container services with a backend (take a look at [service-registrar](https://github.com/gambol99/service-registrar) or [registrator](https://github.com/progrium/registrator) if not)
 
         # docker run -d --privileged=true --net=host 
         -v /var/run/docker.sock:/var/run/docker.sock \
@@ -75,7 +74,7 @@ At present networking is perform in one of one two; if we are running the servic
         -v=3 -interface=eth0 \
         -discovery=etcd://HOST:4001
 
-When the docker boot is will create a iptables entry for DNAT all traffic from 172.17.42.1 to HOST_IFACE:9999. Check the stage/startup.sh if you wish to alter this
+When the docker boots it will create a iptables entry for DNAT all traffic from 172.17.42.1 to HOST_IFACE:9999. Check the stage/startup.sh if you wish to alter this and the command line options.
 
 - Service discovery has registered mutiple containers for a service, say 'app1' in the backend
 
@@ -102,14 +101,14 @@ When the docker boot is will create a iptables entry for DNAT all traffic from 1
 
 ##### **Embassy will**;
 
-> - see the container creation, read the environment variables, scan for service request/s
-> - in this example, it create a proxier with the proxyID = container_ip + service_port
+> - see the creation of the container, read the environment variables, scan for service request/s
+> - in this example above, create a proxier with the proxyID = container_ip + service_port
 > - pull the endpoints from etcd
 > - proxy any connections made to proxy:80 within app1 via a load balancer (default is round robin - or least connections) over to the endpoints.
 > (Note: these ports are overlaying, thus another container is allowed to map another service to the same binding proxy:80 but can be redirected to a completely different place)
 > - naturally, if the endpoints are changed, updated or removed the changes are propagated to the proxy
 
-Note: mutiple services are simple added by placing additional environment variables
+Note: mutiple services are simply added by placing additional environment variables
 
       -e BACKEND_APP1="/services/prod/app1/80[prod,app1];80" \
       -e BACKEND_DB_SLAVES="/services/prod/db/slaves/3306;3306" \
@@ -118,11 +117,11 @@ Note: mutiple services are simple added by placing additional environment variab
 #### **Service Descriptor**
 -------
 
-Service descriptors are read from the environment variables of the container, they MUST be prefixed with 'BACKEND_' and the rest is up to you.
+Service descriptors are read from the environment variables of the container; by default these must be prefixed with BACKEND_ though you can change this on the command line.
 
 The descriptor itself has the following format;
 
-    BACKEND_NAME=<SERVICE_NAME>;<PORT>
+    PREFIX_NAME=<SERVICE_NAME>;<PORT>
 
     consul
     BACKEND_REDIS_SERVICE=redis.master;6379
@@ -136,7 +135,7 @@ The descriptor itself has the following format;
 
 Take a look at the documentation showing a [CoreOS](https://github.com/gambol99/embassy/tree/master/docs) usage for a more complete example.
 
-### **Discovery Agent**
+### **Discovery Agents**
 -------
 
 #### **Etcd Notes**
@@ -197,10 +196,9 @@ The consul agent watches for changes on catalog services; the manner in which yo
       $ docker run -ti --rm -e BACKEND_APACHE_80='frontend_http;80' centos /bin/bash
       [e6d41829bd76] $ curl 172.17.42.1
 
+#### **Marathon Notes** (Beta Version - i.e works, but only added a couple days ago)
 
-#### **Marathon Notes** (Draft Version)
-
-In order to use Marathon as a service discovery provider you need to enable the events callback service via --event_subscriber [http_callback](http://mesosphere.github.io/marathon/docs/event-bus.html), which is obviously accessible by the docker host embassy is running on (Honestly!, someone did this!). Embassy will register itself as a callback with Marathon, on default port of 10001 (though you can change this via teh command line options.
+In order to use Marathon as a service discovery provider you need to enable the events callback service via [--event_subscriber http_callback](http://mesosphere.github.io/marathon/docs/event-bus.html), which is obviously accessible by the docker host embassy is running on (Honestly!, someone did this!). Embassy will register itself as a callback with Marathon on default port of 10001 (though you can change this via the command line options).
 
 The service definitions for service binding is somewhat different when using Marathon due to the nature of how marathon represents the applications internally. Where as Consul and the Etcd (albeit via the service-registrar / registrator in this case) divides the services by port, Marathon has no notion of this. A service / application in Marathon has port mappings for a selection of ports, but there is no means divide one from the other by name alone. Thus in the service definition has to be extended to allow us to explicitly state the *container* port (not the dynamic port) which we wish to proxy to. Example;
 
