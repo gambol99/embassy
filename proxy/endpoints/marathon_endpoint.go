@@ -59,7 +59,9 @@ func init() {
 
 type Marathon interface {
 	/* watch for changes on a application */
-	Watch(application_id string, service_port int, channel EndpointEventChannel)
+	Watch(application_id string, service_port int, channel chan bool)
+	/* remove me from watching this service */
+	Remove(application_id string, service_port int, channel chan bool)
 	/* get a list of applications from marathon */
 	Applications() (Applications,error)
 	/* get a specific application */
@@ -72,13 +74,14 @@ type Marathon interface {
 	GetMarathonURL() string
 	/* get the call back url */
     GetCallbackURL() string
+
 }
 
 type MarathonEndpoint struct {
 	/* a lock to protect the map */
 	sync.RWMutex
 	/* a map of those wishing to receive updates [SERVICEID-PORT]->CHANNELS */
-	services map[string][]EndpointEventChannel
+	services map[string][]chan bool
 	/* the marathon endpoint */
 	marathon_url string
 	/* the callback url */
@@ -104,7 +107,7 @@ func NewMarathonEndpoint() (Marathon, error) {
 
 	/* step: create the service */
 	service := new(MarathonEndpoint)
-	service.services = make(map[string][]EndpointEventChannel,0)
+	service.services = make(map[string][]chan bool,0)
 	service.marathon_url = fmt.Sprintf("http://%s", strings.TrimPrefix(config.Options.Discovery_url, "marathon://") )
 
 	/* step: register with marathon service as a callback for events */
@@ -159,25 +162,70 @@ func (r *MarathonEndpoint) DeregisterCallback(callback string, marathon string) 
 }
 
 func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, request *http.Request) {
-	glog.V(5).Infof("Recieved an marathon event, request: %v", request)
-
+	glog.V(5).Infof("Recieved an marathon event, request: %s", request.Body)
+	/* step: we need to read in the data */
+	decoder := json.NewDecoder(request.Body)
+	var event MarathonStatusUpdate
+	if err := decoder.Decode(&event); err != nil {
+		glog.Errorf("Failed to decode the marathon event: %s, error: %s", request.Body, err )
+	} else {
+		if event.EventType == "status_update_event" {
+			/* step: is anyone listening for events on this service */
+			service_key := fmt.Sprintf("%s:%d", event.AppID, event.Ports[0])
+			r.RLock()
+			defer r.RUnlock()
+			if listeners, found := r.services[service_key]; found {
+				for _, listener := range listeners {
+					go func() {
+						listener <- true
+					}()
+				}
+			} else {
+				glog.V(10).Infof("Status update for application: %s, no one is listening though", event.AppID)
+			}
+		} else {
+			glog.V(10).Infof("Skipping the marathon event, as it's not a status update, type: %s", event.EventType)
+		}
+	}
 }
 
-func (r MarathonEndpoint) Watch(application_id string, service_port int, channel EndpointEventChannel) {
+func (r MarathonEndpoint) Watch(service_name string, service_port int, channel chan bool) {
 	r.Lock()
 	defer r.Unlock()
+	glog.Infof("WATHC: name: %s, port: %d", service_name, service_port)
 	/* step: add the service request to the service map */
-	service_key := fmt.Sprintf("%s:%d", application_id, service_port)
-	if service, found := r.services[service_key]; found {
+	service_key := r.ServiceKey(service_name, service_port)
+	if _, found := r.services[service_key]; found {
 		glog.V(5).Infof("Service: %s already being watched, appending ourself as a listener", service_key)
 		/* step: append our channel and wait for events related */
-		service = append(service, channel)
+		r.services[service_key] = append(r.services[service_key], channel)
 	} else {
 		/* step: add the entry */
 		glog.V(5).Infof("Service: %s not presently being watched, adding now", service_key)
-		r.services[service_key] = make([]EndpointEventChannel,0)
+		r.services[service_key] = make([]chan bool,0)
 		r.services[service_key] = append(r.services[service_key], channel)
 	}
+	glog.V(10).Infof("Marathon event listeners list: %s, service: %s", r.services[service_key], service_key)
+}
+
+func (r MarathonEndpoint) Remove(service_name string, service_port int, channel chan bool) {
+	r.Lock()
+	defer r.Unlock()
+	service_key := r.ServiceKey(service_name, service_port)
+	if listeners, found := r.services[service_key]; found {
+		list := make([]chan bool, 0)
+		for _, listener_channel := range listeners {
+			if channel != listener_channel {
+				list = append(list, listener_channel)
+			}
+		}
+		glog.V(10).Infof("Marathon event listeners list: %s", list)
+		r.services[service_key] = list
+	}
+}
+
+func (r *MarathonEndpoint) ServiceKey(service_name string, service_port int) string {
+	return fmt.Sprintf("%s:%d", service_name, service_port)
 }
 
 func (r *MarathonEndpoint) Application(id string) (Application, error) {
@@ -256,7 +304,6 @@ func (r *MarathonEndpoint) Get(uri string) (string, error) {
 			glog.Errorf("Failed to read in the body of the response, error: %s", err)
 			return "", err
 		} else {
-			glog.Infof("BODY: %s", string(response_body))
 			return string(response_body), nil
 		}
 	}
@@ -289,6 +336,22 @@ type Application struct {
 	TasksStaged     int               `json:"tasksStaged,omitempty"`
 	Uris            []string          `json:"uris,omitempty"`
 	Version         string            `json:"version,omitempty"`
+}
+
+type MarathonEvent struct {
+	EventType string `json:"eventType"`
+}
+
+type MarathonStatusUpdate struct {
+	EventType  string `json:"eventType"`
+	Timestamp  string `json:"timestamp,omitempty"`
+	SlaveID    string `json:"slaveId,omitempty"`
+	TaskID     string `json:"taskId"`
+	TaskStatus string `json:"taskStatus"`
+	AppID      string `json:"appId"`
+	Host       string `json:"host"`
+	Ports      []int  `json:"ports,omitempty"`
+	Version    string `json:"version,omitempty"`
 }
 
 type MarathonApplication struct {

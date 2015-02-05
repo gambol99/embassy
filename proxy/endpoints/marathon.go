@@ -43,7 +43,7 @@ var (
 
 type MarathonClient struct {
 	/* a channel to receive updates from the endpoint from */
-	update_channel EndpointEventChannel
+	update_channel chan bool
 	/* a shutdown channel */
 	shutdown_channel chan bool
 }
@@ -62,7 +62,7 @@ func NewMarathonClient(uri string) (EndpointsProvider, error) {
 	})
 	/* step: extract the marathon url */
 	service := new(MarathonClient)
-	service.update_channel = make(EndpointEventChannel)
+	service.update_channel = make(chan bool, 5)
 	service.shutdown_channel = make(chan bool)
 	return service, nil
 }
@@ -84,16 +84,8 @@ func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 			if len(application.Tasks) <= 0 {
 				return endpoints, nil
 			}
-			/* check: is the port we want exposed by the application? */
-			if len(application.Ports) <= 0 {
-				glog.Errorf("The marathon application: %s does not have any port exposed or mapped", application.ID)
-				return endpoints, nil
-			}
-
 			/* step: iterate the tasks and extract the ports */
 			port_index := -1
-			glog.Infof("Application: %s, ports: %v", application.ID, application.Ports)
-
 			/* check: check we've decoded the docker */
 			for index, port_mapping := range application.Container.Docker.PortMappings {
 				if port_mapping.ContainerPort == service.Port {
@@ -112,14 +104,16 @@ func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 			for _, task := range application.Tasks {
 				endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 			}
-			glog.V(5).Infof("Found %d endpoints in marathon application: %s, endpoints: %v",
-				len(endpoints), application.ID, endpoints)
+			glog.V(3).Infof("Found %d endpoints in marathon application: %s, service port: %d, endpoints: %v",
+				len(endpoints), application.ID, service.Port, endpoints)
 			return endpoints, nil
 		}
 	}
 }
 
 func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel, error) {
+	/* channel to send back events to the endpoints store */
+	endpointUpdateChannel := make(EndpointEventChannel, 5)
 	/*
 		step: validate the service definition, due to the internal representation of applications in
 		marathon, the service port *MUST* is specified in the service definition i.e. BACKEND_FE=/prod/frontend/80;80
@@ -135,20 +129,20 @@ func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel,
 		go func() {
 			for {
 				select {
-				case event :=<- r.update_channel:
-					var _ = event
-
+				case <- r.update_channel:
+					endpointUpdateChannel <- EndpointEvent{string(service.ID),ENDPOINT_CHANGED,*service}
 				case <- r.shutdown_channel:
-
+					marathon.Remove(name, port, r.update_channel)
 				}
 			}
 		}()
 	}
-	return nil, nil
+	return endpointUpdateChannel, nil
 }
 
 func (r *MarathonClient) Close() {
 	/* step: we need to remove our self from listening to the event from the marathon endpoint service */
+	r.shutdown_channel <- true
 }
 
 var MarathonServiceRegex = regexp.MustCompile("^(.*)/([0-9]+);([0-9]+)")
@@ -157,7 +151,8 @@ func (r *MarathonClient) ServiceID(service_id string) (string, int, error) {
 	if elements := MarathonServiceRegex.FindAllStringSubmatch(service_id, -1); len(elements) > 0 {
 		section := elements[0]
 		service_name := section[1]
-		service_port, _ := strconv.Atoi(section[1])
+		service_port, _ := strconv.Atoi(section[2])
+		glog.Infof("SERVICE: id: %s, name: %s, port: %d", service_id, service_name, service_port)
 		return service_name, service_port, nil
 	} else {
 		glog.Errorf("The service definition for service: %s, when using marathon as a provider must have a service port", service_id)
