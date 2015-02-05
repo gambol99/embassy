@@ -200,7 +200,13 @@ The consul agent watches for changes on catalog services; the manner in which yo
 
 #### **Marathon Notes** (Draft Version)
 
-In order to use Marathon as a service discovery provider you need to enable the events callback service via --event_subscriber [http_callback](http://mesosphere.github.io/marathon/docs/event-bus.html), which is obviously accessible by the docker host embassy is running on (Honestly!, someone did this!). The service definitions for service binding using marathon is somewhat different due to the nature of how marathon represents the application internally; where as Consul and the Etcd (albeit via the service-registrar in this case) divides the services by port, Marathon has no notion of this, a service or application in Marathon has port mappings for a selection of ports, there's no means to divide one from the other by name. Thus in the service definition we need to explicitly say the *container* port (not the dynamic port) which we wish to proxy to. Example; curl from the http://10.241.1.71:8080/v2/apps/product/web/frontend/tasks
+In order to use Marathon as a service discovery provider you need to enable the events callback service via --event_subscriber [http_callback](http://mesosphere.github.io/marathon/docs/event-bus.html), which is obviously accessible by the docker host embassy is running on (Honestly!, someone did this!). Embassy will register itself as a callback with Marathon, on default port of 10001 (though you can change this via teh command line options.
+
+The service definitions for service binding is somewhat different when using Marathon due to the nature of how marathon represents the applications internally. Where as Consul and the Etcd (albeit via the service-registrar / registrator in this case) divides the services by port, Marathon has no notion of this. A service / application in Marathon has port mappings for a selection of ports, but there is no means divide one from the other by name alone. Thus in the service definition has to be extended to allow us to explicitly state the *container* port (not the dynamic port) which we wish to proxy to. Example;
+
+
+        # grab the tasks from the application product/web/frontend - which exposes ports 80 & 443
+        # curl http://10.241.1.71:8080/v2/apps/product/web/frontend/tasks
 
         {
           "tasks": [
@@ -239,7 +245,7 @@ In order to use Marathon as a service discovery provider you need to enable the 
           ]
         }
 
- So in order to create a proxy to say port 80 we'd use;
+ So in order to create a proxy to say port 80 we'd add the /PORT_NUMBER to the end of the service definition.
 
         BACKEND_FRONTEND_HTTP=/product/web/frontend/80;8080
 
