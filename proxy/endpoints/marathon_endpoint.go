@@ -80,8 +80,11 @@ type Marathon interface {
 type MarathonEndpoint struct {
 	/* a lock to protect the map */
 	sync.RWMutex
-	/* a map of those wishing to receive updates [SERVICEID-PORT]->CHANNELS */
-	services map[string][]chan bool
+	/* a map of those wishing to receive updates [SERVICEID-PORT]->CHANNELS -
+	Note: due to the fact service_proxies are shared across multiple dockers this is a
+	ONE-2-ONE mapping
+	*/
+	services map[string]chan bool
 	/* the marathon endpoint */
 	marathon_url string
 	/* the callback url */
@@ -107,7 +110,7 @@ func NewMarathonEndpoint() (Marathon, error) {
 
 	/* step: create the service */
 	service := new(MarathonEndpoint)
-	service.services = make(map[string][]chan bool,0)
+	service.services = make(map[string]chan bool,0)
 	service.marathon_url = fmt.Sprintf("http://%s", strings.TrimPrefix(config.Options.Discovery_url, "marathon://") )
 
 	/* step: register with marathon service as a callback for events */
@@ -174,12 +177,10 @@ func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, reque
 			service_key := fmt.Sprintf("%s:%d", event.AppID, event.Ports[0])
 			r.RLock()
 			defer r.RUnlock()
-			if listeners, found := r.services[service_key]; found {
-				for _, listener := range listeners {
-					go func() {
-						listener <- true
-					}()
-				}
+			if listener, found := r.services[service_key]; found {
+				go func() {
+					listener <- true
+				}()
 			} else {
 				glog.V(10).Infof("Status update for application: %s, no one is listening though", event.AppID)
 			}
@@ -193,36 +194,16 @@ func (r MarathonEndpoint) Watch(service_name string, service_port int, channel c
 	r.Lock()
 	defer r.Unlock()
 	service_key := r.GetServiceKey(service_name, service_port)
-	glog.Infof("WATCH: name: %s, port: %d, key: %s", service_name, service_port, service_key)
-
-	if _, found := r.services[service_key]; found {
-		glog.V(5).Infof("Service: %s already being watched, appending ourself as a listener", service_key)
-		/* step: append our channel and wait for events related */
-		r.services[service_key] = append(r.services[service_key], channel)
-	} else {
-		/* step: add the entry */
-		glog.V(5).Infof("Service: %s not presently being watched, adding now", service_key)
-		r.services[service_key] = make([]chan bool,0)
-		r.services[service_key] = append(r.services[service_key], channel)
-	}
-	glog.V(10).Infof("Marathon event listeners list: %s, service: %s", r.services[service_key], service_key)
+	glog.V(10).Infof("Adding a watch for marathong application: %s:%d", service_name, service_port)
+	r.services[service_key] = channel
 }
 
 func (r MarathonEndpoint) Remove(service_name string, service_port int, channel chan bool) {
 	r.Lock()
 	defer r.Unlock()
 	service_key := r.GetServiceKey(service_name, service_port)
-	if listeners, found := r.services[service_key]; found {
-		list := make([]chan bool, 0)
-		glog.V(10).Infof("BEFORE Marathon event listeners list: %s", listeners)
-		for _, listener_channel := range listeners {
-			if listener_channel != channel {
-				list = append(list, listener_channel)
-			}
-		}
-		glog.V(10).Infof("AFTER Marathon event listeners list: %s", list)
-		r.services[service_key] = list
-	}
+	glog.Infof("Deleting the watch for marathon application: %s:%d", service_name, service_port)
+	delete(r.services,service_key)
 }
 
 func (r *MarathonEndpoint) GetServiceKey(service_name string, service_port int) string {
