@@ -62,6 +62,8 @@ type Marathon interface {
 	Watch(application_id string, service_port int, channel EndpointEventChannel)
 	/* get a list of applications from marathon */
 	Applications() (Applications,error)
+	/* get a specific application */
+	Application(id string) (Application, error)
 	/* get a list of tasks for a specific application */
 	Tasks(id string) (Tasks, error)
 	/* get a list of all tasks */
@@ -178,6 +180,21 @@ func (r MarathonEndpoint) Watch(application_id string, service_port int, channel
 	}
 }
 
+func (r *MarathonEndpoint) Application(id string) (Application, error) {
+	if response, err := r.Get(fmt.Sprintf("%s%s", MARATHON_API_APPS, id)); err != nil {
+		glog.Errorf("Failed to retrieve a list of application in marathon, error: %s", err)
+		return Application{}, err
+	} else {
+		var marathonApplication MarathonApplication
+		/* step: we need to un-marshall the json response from marathon */
+		if err = json.Unmarshal([]byte(response), &marathonApplication); err != nil {
+			glog.Errorf("Failed to unmarshall the json response from marathon, response: %s, error: %s", response, err)
+			return Application{}, err
+		}
+		return marathonApplication.Application, nil
+	}
+}
+
 func (r *MarathonEndpoint) Applications() (applications Applications, err error) {
 	var response string
 	if response, err = r.Get(MARATHON_API_APPS); err != nil {
@@ -239,6 +256,7 @@ func (r *MarathonEndpoint) Get(uri string) (string, error) {
 			glog.Errorf("Failed to read in the body of the response, error: %s", err)
 			return "", err
 		} else {
+			glog.Infof("BODY: %s", string(response_body))
 			return string(response_body), nil
 		}
 	}
@@ -258,7 +276,6 @@ type Application struct {
 	Constraints     [][]string        `json:"constraints,omitempty"`
 	Container       *Container        `json:"container,omitempty"`
 	CPUs            float32           `json:"cpus,omitempty"`
-	Deployments     []*Deployment     `json:"deployments,omitempty"`
 	Env             map[string]string `json:"env,omitempty"`
 	Executor        string            `json:"executor,omitempty"`
 	HealthChecks    []*HealthCheck    `json:"healthChecks,omitempty"`
@@ -270,9 +287,12 @@ type Application struct {
 	BackoffFactor   float32           `json:"backoffFactor,omitempty"`
 	TasksRunning    int               `json:"tasksRunning,omitempty"`
 	TasksStaged     int               `json:"tasksStaged,omitempty"`
-	UpgradeStrategy *UpgradeStrategy  `json:"upgradeStrategy,omitempty"`
 	Uris            []string          `json:"uris,omitempty"`
 	Version         string            `json:"version,omitempty"`
+}
+
+type MarathonApplication struct {
+	Application Application	 `json:"app"`
 }
 
 type Container struct {
@@ -305,13 +325,14 @@ type Tasks struct {
 }
 
 type Task struct {
-	AppID     string `json:"appId"`
-	Host      string `json:"host"`
-	ID        string `json:"id"`
-	Ports     []int  `json:"ports"`
-	StagedAt  string `json:"stagedAt"`
-	StartedAt string `json:"startedAt"`
-	Version   string `json:"version"`
+	AppID     		string `json:"appId"`
+	Host      		string `json:"host"`
+	ID        		string `json:"id"`
+	Ports     		[]int  `json:"ports"`
+	ServicePorts    []int  `json:"servicePorts"`
+	StagedAt  		string `json:"stagedAt"`
+	StartedAt 		string `json:"startedAt"`
+	Version   		string `json:"version"`
 }
 
 type HealthCheck struct {
@@ -321,23 +342,4 @@ type HealthCheck struct {
 	IntervalSeconds    int    `json:"intervalSeconds,omitempty"`
 	PortIndex          int    `json:"portIndex,omitempty"`
 	TimeoutSeconds     int    `json:"timeoutSeconds,omitempty"`
-}
-
-type UpgradeStrategy struct {
-	MinimumHealthCapacity float32 `json:"minimumHealthCapacity,omitempty"`
-}
-
-type Deployment struct {
-	AffectedApps   []string          `json:"affectedApps"`
-	ID             string            `json:"id"`
-	Steps          []*DeploymentStep `json:"steps"`
-	CurrentActions []*DeploymentStep `json:"currentActions"`
-	CurrentStep    int               `json:"currentStep"`
-	TotalSteps     int               `json:"totalSteps"`
-	Version        string            `json:"version"`
-}
-
-type DeploymentStep struct {
-	Action string `json:"action"`
-	App    string `json:"app"`
 }

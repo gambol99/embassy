@@ -18,6 +18,7 @@ package endpoints
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"sync"
@@ -73,19 +74,46 @@ func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 		glog.Errorf("Failed to retrieve the service port, error: %s", err)
 		return nil, err
 	} else {
-		if tasks, err := marathon.Tasks(name); err != nil {
+		if application, err := marathon.Application(name); err != nil {
 			glog.Errorf("Failed to retrieve a list of tasks for application: %s, error: %s", service.ID, err)
 			return nil, err
 		} else {
 			/* step: iterate the tasks and build the endpoints */
 			endpoints := make([]Endpoint,0)
-			for _, task := range tasks.Tasks {
-				glog.V(5).Infof("Marathon application: %s, task: %v", service.ID, task)
-				var endpoint Endpoint
-
-
-				endpoints = append(endpoints, endpoint)
+			/* check: does the application have any active tasks ? */
+			if len(application.Tasks) <= 0 {
+				return endpoints, nil
 			}
+			/* check: is the port we want exposed by the application? */
+			if len(application.Ports) <= 0 {
+				glog.Errorf("The marathon application: %s does not have any port exposed or mapped", application.ID)
+				return endpoints, nil
+			}
+
+			/* step: iterate the tasks and extract the ports */
+			port_index := -1
+			glog.Infof("Application: %s, ports: %v", application.ID, application.Ports)
+
+			/* check: check we've decoded the docker */
+			for index, port_mapping := range application.Container.Docker.PortMappings {
+				if port_mapping.ContainerPort == service.Port {
+					port_index = index
+				}
+			}
+			/* check: did we find the port? */
+			if port_index < 0 {
+				glog.Errorf("The port: %s is not presenly exposed by the marathon application: %s", service.Port, application.ID)
+				return endpoints, errors.New("The service port is not presently exposed by the application: " + application.ID)
+			}
+			/*
+				step: we iterate the tasks and extract the ports - THIS IS SUCH A SHITTY WAY of representing the
+				ports mapping in marathon, HONESTLY!! ... Can i not get a bloody hash!!!
+			 */
+			for _, task := range application.Tasks {
+				endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+			}
+			glog.V(5).Infof("Found %d endpoints in marathon application: %s, endpoints: %v",
+				len(endpoints), application.ID, endpoints)
 			return endpoints, nil
 		}
 	}
