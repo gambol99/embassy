@@ -4,7 +4,7 @@
 #
 #  vim:ts=2:sw=2:et
 #
-FROM centos
+FROM centos:centos7
 MAINTAINER <gambol99@gmail.com>
 
 ADD ./stage/embassy /bin/embassy
