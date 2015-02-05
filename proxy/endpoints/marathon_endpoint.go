@@ -172,6 +172,7 @@ func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, reque
 		glog.Errorf("Failed to decode the marathon event: %s, error: %s", request.Body, err )
 	} else {
 		if event.EventType == "status_update_event" {
+			glog.V(3).Infof("Recieved a service update for marathon application: %s", event.AppID)
 			/* @@TODO need to think more about how we do this */
 			for service, listerner := range r.services {
 				if strings.HasPrefix(service, event.AppID) {

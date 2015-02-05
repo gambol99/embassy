@@ -198,7 +198,7 @@ The consul agent watches for changes on catalog services; the manner in which yo
       [e6d41829bd76] $ curl 172.17.42.1
 
 
-#### **Marathon Notes**
+#### **Marathon Notes** (Draft Version)
 
 In order to use Marathon as a service discovery provider you need to enable the events callback service via --event_subscriber [http_callback](http://mesosphere.github.io/marathon/docs/event-bus.html), which is obviously accessible by the docker host embassy is running on (Honestly!, someone did this!). The service definitions for service binding using marathon is somewhat different due to the nature of how marathon represents the application internally; where as Consul and the Etcd (albeit via the service-registrar in this case) divides the services by port, Marathon has no notion of this, a service or application in Marathon has port mappings for a selection of ports, there's no means to divide one from the other by name. Thus in the service definition we need to explicitly say the *container* port (not the dynamic port) which we wish to proxy to. Example; curl from the http://10.241.1.71:8080/v2/apps/product/web/frontend/tasks
 
