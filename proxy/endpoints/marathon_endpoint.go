@@ -165,31 +165,23 @@ func (r *MarathonEndpoint) DeregisterCallback(callback string, marathon string) 
 
 func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, request *http.Request) {
 	glog.V(5).Infof("Recieved an marathon event from service")
-	/* step: read in the data from the post */
-	if payload, err := ioutil.ReadAll(request.Body); err != nil {
-		glog.Errorf("Failed to read the request body, error: %s", err )
+	/* step: print and decode */
+	var event MarathonStatusUpdate
+	decoder := json.NewDecoder(request.Body)
+	if err := decoder.Decode(&event); err != nil {
+		glog.Errorf("Failed to decode the marathon event: %s, error: %s", request.Body, err )
 	} else {
-		/* step: print and decode */
-		glog.V(10).Infof("Marathon Event: body: %s", payload)
-		var event MarathonStatusUpdate
-		decoder := json.NewDecoder(request.Body)
-		if err := decoder.Decode(&event); err != nil {
-			glog.Errorf("Failed to decode the marathon event: %s, error: %s", request.Body, err )
-		} else {
-			if event.EventType == "status_update_event" {
-				r.RLock()
-				defer r.RUnlock()
-				service_key := r.GetServiceKey(event.AppID, 0)
-				if listener, found := r.services[service_key]; found {
+		if event.EventType == "status_update_event" {
+			/* @@TODO need to think more about how we do this */
+			for service, listerner := range r.services {
+				if strings.HasPrefix(service, event.AppID) {
 					go func() {
-						listener <- true
+						listerner <- true
 					}()
-				} else {
-					glog.V(10).Infof("Status update for application: %s, no one is listening though", event.AppID)
 				}
-			} else {
-				glog.V(10).Infof("Skipping the marathon event, as it's not a status update, type: %s", event.EventType)
 			}
+		} else {
+			glog.V(10).Infof("Skipping the marathon event, as it's not a status update, type: %s", event.EventType)
 		}
 	}
 }
@@ -211,7 +203,7 @@ func (r MarathonEndpoint) Remove(service_name string, service_port int, channel 
 }
 
 func (r *MarathonEndpoint) GetServiceKey(service_name string, service_port int) string {
-	return fmt.Sprintf("%s", service_name)
+	return fmt.Sprintf("%s:%d", service_name, service_port)
 }
 
 func (r *MarathonEndpoint) Application(id string) (Application, error) {

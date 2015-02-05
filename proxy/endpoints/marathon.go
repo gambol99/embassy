@@ -62,7 +62,7 @@ func NewMarathonClient(uri string) (EndpointsProvider, error) {
 	})
 	/* step: extract the marathon url */
 	service := new(MarathonClient)
-	service.update_channel = make(chan bool, 5)
+	service.update_channel   = make(chan bool, 5)
 	service.shutdown_channel = make(chan bool)
 	return service, nil
 }
