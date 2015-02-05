@@ -31,9 +31,12 @@ import (
 )
 
 type EtcdClient struct {
-	Client   *etcd.Client
-	Shutdown utils.ShutdownSignalChannel
-	KillOff  bool
+	/* the etcd http client */
+	client   *etcd.Client
+	/* the shutdown channel for the service */
+	shutdown_channel utils.ShutdownSignalChannel
+	/* a kill switch */
+	kill_off  bool
 }
 
 var EtcdOptions struct {
@@ -62,19 +65,19 @@ func NewEtcdStore(uri string) (EndpointsProvider, error) {
 			glog.Errorf("Failed to create a TLS connection to etcd: %s, error: %s", uri, err )
 			return nil, err
 		}
-		service.Client = client
+		service.client = client
 	} else {
-		service.Client = etcd.NewClient(GetEtcdHosts(uri))
+		service.client = etcd.NewClient(GetEtcdHosts(uri))
 	}
-	service.Shutdown = make(utils.ShutdownSignalChannel)
-	service.KillOff = false
+	service.shutdown_channel = make(utils.ShutdownSignalChannel)
+	service.kill_off = false
 	return service, nil
 }
 
 func (r *EtcdClient) Close() {
 	glog.Infof("Request to shutdown the endpoints agent")
-	r.KillOff = true
-	r.Shutdown <- true
+	r.kill_off = true
+	r.shutdown_channel <- true
 }
 
 func (e *EtcdClient) Watch(si *services.Service) (updates EndpointEventChannel, err error) {
@@ -104,7 +107,7 @@ func (e *EtcdClient) Watch(si *services.Service) (updates EndpointEventChannel, 
 				}
 				/* send the event upstream to endpoints store */
 				endpointUpdateChannel <- event
-			case <-e.Shutdown:
+			case <-e.shutdown_channel:
 				glog.Infof("Shutting down the watcher on service: %s", si)
 				stopChannel <- true
 				return
@@ -114,12 +117,12 @@ func (e *EtcdClient) Watch(si *services.Service) (updates EndpointEventChannel, 
 	return endpointUpdateChannel, nil
 }
 
-func (r *EtcdClient) WaitForChanges(path string, updateChannel chan *etcd.Response, stopChannel chan bool) {
+func (r *EtcdClient) WaitForChanges(path string, update_channel chan *etcd.Response, stop_channel chan bool) {
 	for {
 		glog.V(5).Infof("Waiting on endpoints for service path: %s to change", path)
-		response, err := r.Client.Watch(path, uint64(0), true, nil, stopChannel)
+		response, err := r.client.Watch(path, uint64(0), true, nil, stop_channel)
 		if err != nil {
-			if r.KillOff {
+			if r.kill_off {
 				glog.Infof("Quitting the watcher on service path: %s", path)
 				return
 			} else {
@@ -131,7 +134,7 @@ func (r *EtcdClient) WaitForChanges(path string, updateChannel chan *etcd.Respon
 		/* else we have a good response - lets check if it's a directory change */
 		if response.Node.Dir == false {
 			glog.V(7).Infof("Changed occured on path: %s", path)
-			updateChannel <- response
+			update_channel <- response
 		}
 	}
 }
@@ -150,7 +153,7 @@ func (e *EtcdClient) List(si *services.Service) ([]Endpoint, error) {
 	/* step: iterate the nodes and generate the services documents */
 	for _, service_path := range paths {
 		glog.V(5).Infof("Retrieving service document on path: %s", service_path)
-		response, err := e.Client.Get(service_path, false, false)
+		response, err := e.client.Get(service_path, false, false)
 		if err != nil {
 			glog.Errorf("Failed to get service document at path: %s, error: %s", service_path, err)
 			continue
@@ -167,7 +170,7 @@ func (e *EtcdClient) List(si *services.Service) ([]Endpoint, error) {
 }
 
 func (e *EtcdClient) Paths(path string, paths *[]string) ([]string, error) {
-	response, err := e.Client.Get(path, false, true)
+	response, err := e.client.Get(path, false, true)
 	if err != nil {
 		return nil, errors.New("Unable to complete walking the tree" + err.Error())
 	}

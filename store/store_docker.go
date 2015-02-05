@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gambol99/embassy/config"
 	docker "github.com/gambol99/go-dockerclient"
 	"github.com/golang/glog"
 )
@@ -34,16 +35,14 @@ const (
 	DOCKER_DESTROY          = "destroy"
 	DOCKER_CONTAINER_PREFIX = "container:"
 	DEFAULT_DOCKER_SOCKET   = "unix:///var/run/docker.sock"
-	DEFAULT_BACKEND_PREFIX  = "BACKEND_"
 )
 
 var (
-	docker_socket, service_prefix *string
+	docker_socket *string
 )
 
 func init() {
 	docker_socket  = flag.String("docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
-	service_prefix = flag.String("prefix", DEFAULT_BACKEND_PREFIX, "the prefix used to distinguish a backend service")
 }
 
 type DockerServiceStore struct {
@@ -274,7 +273,7 @@ func (r DockerServiceStore) GetContainerIPAddress(container *docker.Container) (
 }
 
 func (r DockerServiceStore) IsBackendService(key string) (found bool) {
-	found, _ = regexp.MatchString("^+" + *service_prefix, key)
+	found, _ = regexp.MatchString("^+" + config.Options.Service_prefix, key)
 	return
 }
 

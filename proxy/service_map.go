@@ -16,6 +16,22 @@ limitations under the License.
 
 package proxy
 
+/*
+	Service Proxies are shared across multiple endpoints - thus, if you have docker A and docker B
+	both talking to the service redis-slave;6379. All their connections are channelled through the
+	same service proxy (service_proxy.go). The mapping from Proxies is
+
+	So for example;
+
+		dockerA (172.17.0.27): redis-slave;6379
+		dockerB (172.17.0.28): redis-slave;6379
+		dockerB (172.17.0.29): redis-slave;6380
+
+	Proxies["172.17.0.27:6379"] -> service_proxyA
+	Proxies["172.17.0.28:6379"] -> service_proxyA
+	Proxies["172.17.0.28:6380"] -> service_proxyA
+ */
+
 import (
 	"errors"
 	"sync"

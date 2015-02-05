@@ -39,7 +39,7 @@ const (
 	DEFAULT_WAIT_TIME = 10 * time.Second
 )
 
-func NewConsulClent(discovery string) (EndpointsProvider, error) {
+func NewConsulClient(discovery string) (EndpointsProvider, error) {
 	config := consulapi.DefaultConfig()
 	uri, err := url.Parse(discovery)
 	if err != nil {

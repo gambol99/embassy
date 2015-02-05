@@ -21,7 +21,7 @@ import (
 	"flag"
 	"strings"
 
-	"github.com/gambol99/embassy/proxy"
+	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
 )
@@ -40,9 +40,9 @@ func AddStaticServiceProvider() (ServiceProvider, error) {
 		return nil, errors.New("You have specified any services to proxy, check usage menu")
 	}
 	/* step: we need to get the ip address */
-	address, err := utils.GetLocalIPAddress(*proxy.Proxy_interface)
+	address, err := utils.GetLocalIPAddress(config.Options.Proxy_interface)
 	if err != nil {
-		glog.Errorf("Failed to get the ip address of %s interface, error: %s", proxy.Proxy_interface, err)
+		glog.Errorf("Failed to get the ip address of %s interface, error: %s", config.Options.Proxy_interface, err)
 		return nil, err
 	}
 
