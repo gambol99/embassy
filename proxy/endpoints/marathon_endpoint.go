@@ -192,9 +192,9 @@ func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, reque
 func (r MarathonEndpoint) Watch(service_name string, service_port int, channel chan bool) {
 	r.Lock()
 	defer r.Unlock()
-	glog.Infof("WATHC: name: %s, port: %d", service_name, service_port)
-	/* step: add the service request to the service map */
-	service_key := r.ServiceKey(service_name, service_port)
+	service_key := r.GetServiceKey(service_name, service_port)
+	glog.Infof("WATCH: name: %s, port: %d, key: %s", service_name, service_port, service_key)
+
 	if _, found := r.services[service_key]; found {
 		glog.V(5).Infof("Service: %s already being watched, appending ourself as a listener", service_key)
 		/* step: append our channel and wait for events related */
@@ -211,20 +211,21 @@ func (r MarathonEndpoint) Watch(service_name string, service_port int, channel c
 func (r MarathonEndpoint) Remove(service_name string, service_port int, channel chan bool) {
 	r.Lock()
 	defer r.Unlock()
-	service_key := r.ServiceKey(service_name, service_port)
+	service_key := r.GetServiceKey(service_name, service_port)
 	if listeners, found := r.services[service_key]; found {
 		list := make([]chan bool, 0)
+		glog.V(10).Infof("BEFORE Marathon event listeners list: %s", listeners)
 		for _, listener_channel := range listeners {
-			if channel != listener_channel {
+			if listener_channel != channel {
 				list = append(list, listener_channel)
 			}
 		}
-		glog.V(10).Infof("Marathon event listeners list: %s", list)
+		glog.V(10).Infof("AFTER Marathon event listeners list: %s", list)
 		r.services[service_key] = list
 	}
 }
 
-func (r *MarathonEndpoint) ServiceKey(service_name string, service_port int) string {
+func (r *MarathonEndpoint) GetServiceKey(service_name string, service_port int) string {
 	return fmt.Sprintf("%s:%d", service_name, service_port)
 }
 
