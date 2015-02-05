@@ -9,6 +9,8 @@ An example setup for testing / demoing the Embassy Proxy
 
     # Whip up the CoreOS cluster - *note, change instance number in the config/coreos-config.rb file*
     $ vagrant up
+    
+Also note, if you've not hardcode a discovery token the coreos-config, one will be auto-generated - because I'm not saving these across vagrant up, you need to bring the cluster up in one go i.e. vagrant up / not vagrant up core101/102 etc. Or better yet, change the Vagrantfile to save the generated token across invocations in a temporary file perhaps. 
 
     # We should have (by default) 3 new CoreOS machines in a cluster.
   
