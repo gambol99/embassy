@@ -173,7 +173,6 @@ func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, reque
 		glog.Errorf("Failed to decode the marathon event: %s, error: %s", request.Body, err )
 	} else {
 		if event.EventType == "status_update_event" {
-			/* step: is anyone listening for events on this service */
 			service_key := fmt.Sprintf("%s:%d", event.AppID, event.Ports[0])
 			r.RLock()
 			defer r.RUnlock()

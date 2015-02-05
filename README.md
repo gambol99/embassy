@@ -2,6 +2,7 @@
 [![Build Status](https://drone.io/github.com/gambol99/embassy/status.png)](https://drone.io/github.com/gambol99/embassy/latest)
 
 ### **Embassy**
+
 Is a service proxy / load balancer for docker container services, using etcd | consul for service endpoint discovery. Presently it can be run on the following modes; 
 
 >   - run locally inside the container as seperate service
@@ -11,8 +12,9 @@ Is a service proxy / load balancer for docker container services, using etcd | c
 Embassy run is a single tcp port with iptables dnatting the destination and port over to the proxy from the virtual proxy ip (namely the docker0 interface ip)
 
 #### **Service Endpoint Discovery**
+------
 
-Embassy presently supports the following providers to pull endpoints from. Note; how you get your endpoint *into* them is up to you, though examples reference in this README list a couple ways.
+Embassy presently supports the following providers to pull endpoints from. Note; how you get your endpoints **into** them is up to you, though examples are referenced throughout this README.
 
 >   - [Consul](https://consul.io)
 >   - [Etcd](https://github.com/coreos/etcd)
@@ -20,13 +22,15 @@ Embassy presently supports the following providers to pull endpoints from. Note;
 
 #### **Service Providers**
 
+
 At present embassy supports two service providers;
 
->  **Docker services**: we read the services and backend requests when a container is started. Note, we also perform a initial listing during startup (so anything already running and requesting backends is processed). Naturally, we need access to the docker socket to listen to events.
+> **Docker services**: we read the services and backend requests when a container is started. Note, we also perform a initial listing during startup (so anything already running and requesting backends is processed). Naturally, we need access to the docker socket to listen to events.
 
 > **Static services**: the service requests are read from the command line when embassy is started up
 
 #### **Docker Usage**
+------
 
 At present networking is perform in one of one two; if we are running the service proxy on the docker host, we'd have to DNAT *(i.e. --dnat)* between the containers and the parent host, alternatively if we are running the service with a container or using docker links we can use iptables redirect --redirect. Check the startup.sh in stage/  to see the code.
 
@@ -111,8 +115,8 @@ Note: mutiple services are simple added by placing additional environment variab
       -e BACKEND_DB_SLAVES="/services/prod/db/slaves/3306;3306" \
       -e BACKEND_DB_MASTER="/services/prod/db/master/3306;3306"
 
----------------
 #### **Service Descriptor**
+-------
 
 Service descriptors are read from the environment variables of the container, they MUST be prefixed with 'BACKEND_' and the rest is up to you.
 
@@ -127,13 +131,13 @@ The descriptor itself has the following format;
     marathon
     BACKEND_REDOES_SERVICE=/prod/redis.master/6379;6379  # view the notes for Marathon
 
---------------
-
 #### **QuickStart**
+-------
 
 Take a look at the documentation showing a [CoreOS](https://github.com/gambol99/embassy/tree/master/docs) usage for a more complete example.
 
 ### **Discovery Agent**
+-------
 
 #### **Etcd Notes**
 
