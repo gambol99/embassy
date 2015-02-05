@@ -20,7 +20,6 @@ import (
 	"errors"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/gambol99/embassy/config"
@@ -69,27 +68,33 @@ func NewMarathonClient(uri string) (EndpointsProvider, error) {
 
 func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 	glog.V(5).Infof("Retrieving a list of endpoints from marathon: %s", config.Options.Discovery_url)
-	if tasks, err := marathon.Tasks(string(service.ID)); err != nil {
-		glog.Errorf("Failed to retrieve a list of tasks for application: %s, error: %s", service.ID, err)
+	/* step: extract the service id */
+	if name, _, err := r.ServiceID(string(service.ID)); err != nil {
+		glog.Errorf("Failed to retrieve the service port, error: %s", err)
 		return nil, err
 	} else {
-		/* step: iterate the tasks and build the endpoints */
-		endpoints := make([]Endpoint,0)
-		for _, task := range tasks.Tasks {
-			glog.V(5).Infof("Marathon application: %s, task: %v", service.ID, task)
-			var endpoint Endpoint
+		if tasks, err := marathon.Tasks(name); err != nil {
+			glog.Errorf("Failed to retrieve a list of tasks for application: %s, error: %s", service.ID, err)
+			return nil, err
+		} else {
+			/* step: iterate the tasks and build the endpoints */
+			endpoints := make([]Endpoint,0)
+			for _, task := range tasks.Tasks {
+				glog.V(5).Infof("Marathon application: %s, task: %v", service.ID, task)
+				var endpoint Endpoint
 
 
-			endpoints = append(endpoints, endpoint)
+				endpoints = append(endpoints, endpoint)
+			}
+			return endpoints, nil
 		}
-		return endpoints, nil
 	}
 }
 
 func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel, error) {
 	/*
-	step: validate the service definition, due to the internal representation of applications in
-	marathon, the service port *MUST* is specified in the service definition i.e. BACKEND_FE=/prod/frontend/80;80
+		step: validate the service definition, due to the internal representation of applications in
+		marathon, the service port *MUST* is specified in the service definition i.e. BACKEND_FE=/prod/frontend/80;80
 	*/
 	if name, port, err := r.ServiceID(string(service.ID)); err != nil {
 		glog.Errorf("Failed to retrieve the service port, error: %s", err)
@@ -116,16 +121,16 @@ func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel,
 
 func (r *MarathonClient) Close() {
 	/* step: we need to remove our self from listening to the event from the marathon endpoint service */
-
 }
 
+var MarathonServiceRegex = regexp.MustCompile("^(.*)/([0-9]+);([0-9]+)")
+
 func (r *MarathonClient) ServiceID(service_id string) (string, int, error) {
-	elements := strings.SplitN(service_id, "/", -1)
-	service_port := strings.Join(elements[:len(elements)-1],"")
-	service_name := strings.Join(elements[0:len(elements)-1],"/")
-	if matched, _ := regexp.MatchString(service_port, "^[0-9]*$" ); matched {
-	    port, _ := strconv.Atoi(service_port)
-		return service_name, port, nil
+	if elements := MarathonServiceRegex.FindAllStringSubmatch(service_id, -1); len(elements) > 0 {
+		section := elements[0]
+		service_name := section[1]
+		service_port, _ := strconv.Atoi(section[1])
+		return service_name, service_port, nil
 	} else {
 		glog.Errorf("The service definition for service: %s, when using marathon as a provider must have a service port", service_id)
 		return "", 0, errors.New("The service definition is invalid, please check documentation regarding marathon provider")

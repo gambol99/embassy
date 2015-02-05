@@ -37,8 +37,8 @@ const (
 	DEFAULT_EVENTS_URL        = "/"
 	MARATHON_API_VERSION      = "v2"
 	MARATHON_API_SUBSCRIPTION = MARATHON_API_VERSION + "/eventSubscriptions"
-	MARATHON_API_APPS  	      = MARATHON_API_VERSION + "apps"
-	MARATHON_API_TASKS        = MARATHON_API_VERSION + "tasks"
+	MARATHON_API_APPS  	      = MARATHON_API_VERSION + "/apps"
+	MARATHON_API_TASKS        = MARATHON_API_VERSION + "/tasks"
 )
 
 var MarathonEndpointOptions struct {
@@ -210,7 +210,7 @@ func (r *MarathonEndpoint) AllTasks() (tasks Tasks, err error) {
 
 func (r *MarathonEndpoint) Tasks(application_id string) (tasks Tasks, err error) {
 	var response string
-	if response, err = r.Get(fmt.Sprintf("%s/%s/tasks", MARATHON_API_APPS, application_id ) ); err != nil {
+	if response, err = r.Get(fmt.Sprintf("%s%s/tasks", MARATHON_API_APPS, application_id ) ); err != nil {
 		glog.Errorf("Failed to retrieve a list of application tasks in marathon, error: %s", err)
 		return
 	} else {
@@ -225,7 +225,7 @@ func (r *MarathonEndpoint) Tasks(application_id string) (tasks Tasks, err error)
 
 func (r *MarathonEndpoint) Get(uri string) (string, error) {
 	url := fmt.Sprintf("%s/%s", r.marathon_url, uri)
-	glog.V(5).Infof("HttpGet() url: %s", url )
+	glog.V(5).Infof("Get() url: %s", url )
 	if response, err := http.Get(url); err != nil {
 		return "", err
 	} else {
