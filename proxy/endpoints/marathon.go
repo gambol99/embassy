@@ -29,8 +29,7 @@ import (
 )
 
 var (
-	/*
-		the lock is used to register a callback provider on first service request -
+	/* the lock is used to register a callback provider on first service request -
 		@todo - we should probably do this on startup rather than waiting
 	*/
 	marathon_lock sync.Once
@@ -75,7 +74,6 @@ func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 		glog.Errorf("Failed to retrieve the service port, error: %s", err)
 		return nil, err
 	} else {
-		/* step: we retrieve the marathon application */
 		if application, err := marathon.Application(name); err != nil {
 			glog.Errorf("Failed to retrieve a list of tasks for application: %s, error: %s", service.ID, err)
 			return nil, err
