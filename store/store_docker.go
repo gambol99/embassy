@@ -223,7 +223,7 @@ func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Def
 	for key, value := range environment {
 		/* step: if we */
 		if r.IsBackendService(key) {
-			glog.V(2).Infof("Found backend request in container: %s, service: %s", containerID, value)
+			glog.V(3).Infof("Found backend request in container: %s, service: %s", containerID, value)
 			/* step: create a backend definition and append to list */
 			var definition DefinitionEvent
 			definition.Name = key
@@ -242,7 +242,7 @@ func (r *DockerServiceStore) InspectContainerServices(containerID string) ([]Def
 func (r DockerServiceStore) GetContainerIPAddress(container *docker.Container) (string, error) {
 	/* step: does the docker have an ip address */
 	if source_address := container.NetworkSettings.IPAddress; source_address != "" {
-		glog.V(2).Infof("Container: %s, source ip address: %s", container.ID[:12], source_address)
+		glog.V(4).Infof("Container: %s, source ip address: %s", container.ID[:12], source_address)
 		return source_address, nil
 	} else {
 		/* step: check if the container is in NetworkMode = container and if so, grab the ip address of the container */
@@ -286,7 +286,7 @@ func ContainerEnvironment(variables []string) (map[string]string, error) {
 			elements := strings.SplitN(kv, "=", 2)
 			environment[elements[0]] = elements[1]
 		} else {
-			glog.V(3).Infof("Invalid environment variable: %s, skipping", kv)
+			glog.V(4).Infof("Invalid environment variable: %s, skipping", kv)
 		}
 	}
 	return environment, nil

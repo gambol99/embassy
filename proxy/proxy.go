@@ -120,7 +120,7 @@ func (px *ProxyStore) Start() error {
 				proxier.Close()
 			}
 		case event := <-service_updates:
-			glog.Infof("ProxyService recieved service update, service: %s, action: %s", event.Service, event.Action)
+			glog.V(3).Infof("ProxyService recieved service update, service: %s, action: %s", event.Service, event.Action)
 			/* step: check if the service is already being processed */
 			if err := px.ProcessServiceEvent(&event); err != nil {
 				glog.Errorf("Unable to process the service request: %s, error: %s", event.Service, err)

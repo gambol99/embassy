@@ -88,7 +88,7 @@ func (r *ProxyServiceMap) CreateServiceProxy(si services.Service) error {
 	/* step: check if a service proxy already exists */
 	if proxy, found := r.LookupProxyByServiceId(si.ID); found {
 		// the proxy service already exists, we simply map a proxyID -> ProxyService
-		glog.V(3).Infof("A proxy service already exists for service: %s, mapping new proxy id: %s", si, proxyID)
+		glog.V(4).Infof("A proxy service already exists for service: %s, mapping new proxy id: %s", si, proxyID)
 		r.AddServiceProxy(proxyID, proxy)
 	} else {
 		/* step: we need to create a new service proxy for this service */
@@ -165,11 +165,11 @@ func (r *ProxyServiceMap) ListServiceEndpoints(string) ([]endpoints.Endpoint, er
 func (r *ProxyServiceMap) LookupProxyByServiceId(id services.ServiceID) (ServiceProxy, bool) {
 	for _, service := range r.Proxies {
 		if service.GetService().ID == id {
-			glog.V(3).Infof("Found service proxy for service id: %s", id)
+			glog.V(4).Infof("Found service proxy for service id: %s", id)
 			return service, true
 		}
 	}
-	glog.V(3).Infof("Proxy service does not exists for service id: %s", id)
+	glog.V(4).Infof("Proxy service does not exists for service id: %s", id)
 	return nil, false
 }
 
