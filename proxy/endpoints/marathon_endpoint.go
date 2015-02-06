@@ -184,23 +184,29 @@ func (r *MarathonEndpoint) DeregisterCallback(callback string, marathon string) 
 
 func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, request *http.Request) {
 	glog.V(6).Infof("Recieved an Marathon event from service")
-	var event MarathonStatusUpdate
+	var event MarathonEvent
 	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&event); err != nil {
 		glog.Errorf("Failed to decode the Marathon event: %s, error: %s", request.Body, err )
 	} else {
-		if event.EventType == "status_update_event" {
-			glog.V(3).Infof("Recieved a service update for Marathon application: %s", event.AppID)
-			/* @@TODO need to think more about how we do this */
-			for service, listerner := range r.services {
-				if strings.HasPrefix(service, event.AppID) {
-					go func() {
-						listerner <- true
-					}()
-				}
-			}
-		} else {
+		switch event.EventType {
+		case "health_status_changed_event":
+			glog.V(5).Infof("Marathon application: %s health status has been altered, resyncing", event.AppID)
+		case "status_update_event":
+			glog.V(5).Infof("Marathon application: %s status update, resyncing endpoints", event.AppID)
+		default:
 			glog.V(10).Infof("Skipping the Marathon event, as it's not a status update, type: %s", event.EventType)
+			return
+		}
+		/* step: we notify the receiver */
+		for service, listener := range r.services {
+			//glog.Infof("FOUND SERVICE, key: %s, channel: %v", service, listener)
+			if strings.HasPrefix(service, event.AppID) {
+				//glog.Infof("SENDING EVENT, key: %s, channel: %v", service, listener)
+				go func() {
+					listener <- true
+				}()
+			}
 		}
 	}
 }
@@ -297,6 +303,7 @@ func (r *MarathonEndpoint) Get(uri string) (string, error) {
 			glog.Errorf("Failed to read in the body of the response, error: %s", err)
 			return "", err
 		} else {
+			glog.V(20).Infof("Get() response: %s", response_body)
 			return string(response_body), nil
 		}
 	}
@@ -333,6 +340,7 @@ type Application struct {
 
 type MarathonEvent struct {
 	EventType string `json:"eventType"`
+	AppID     string `json:"appId"`
 }
 
 type MarathonStatusUpdate struct {
@@ -345,6 +353,15 @@ type MarathonStatusUpdate struct {
 	Host       string `json:"host"`
 	Ports      []int  `json:"ports,omitempty"`
 	Version    string `json:"version,omitempty"`
+}
+
+type MarathonHealthCheckChanged struct {
+	EventType  string `json:"eventType"`
+	Timestamp  string `json:"timestamp,omitempty"`
+	AppID      string `json:"appId"`
+	TaskID     string `json:"taskId"`
+	Version    string `json:"version,omitempty"`
+	Alive  	   bool   `json:"alive"`
 }
 
 type MarathonApplication struct {

@@ -126,27 +126,29 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 				- and if so, exclude the endpoint from our list;
 				  : @@CHOICE we could remove the endpoint, regardless of service??
 			*/
-			health_check_passed := true
 			for port_index, health := range task.HealthCheckResult {
-				if !health.Alive {
-					if service.Port == application.Container.Docker.PortMappings[port_index].ContainerPort {
-						health_check_passed = false
+				if health == nil {
+					glog.V(3).Infof("The health check for application: %s, task: %s:%d is missing",
+						application.ID, task.Host, task.Ports[port_index])
+					endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+				} else {
+					if !health.Alive {
+						if service.Port == application.Container.Docker.PortMappings[port_index].ContainerPort {
+							glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed",
+								service, task.Host, service.Port)
+						}
+					} else {
+						endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 					}
 				}
 			}
-			if !health_check_passed {
-				glog.V(4).Infof("Service: %s, endpoint: %s:s health check not passed",
-					service, task.Host, service.Port)
-				break
-			}
-			/* step: else we can add endpoint as it */
-			endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 		} else {
 			/* step: else we can simply add it to the list */
 			endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 		}
 	}
-	glog.V(3).Infof("Found %d endpoints in marathon application: %s, service port: %d, endpoints: %v", 	len(endpoints), application.ID, service.Port, endpoints)
+	glog.V(3).Infof("Found %d endpoints in marathon application: %s, service port: %d, endpoints: %v",
+		len(endpoints), application.ID, service.Port, endpoints)
 	return endpoints, nil
 }
 
