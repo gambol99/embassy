@@ -381,15 +381,15 @@ type Tasks struct {
 }
 
 type Task struct {
-	AppID     			string 				`json:"appId"`
-	Host      			string 				`json:"host"`
-	ID        			string 			    `json:"id"`
-	HealthCheckResult   *HealthCheckResult  `json:"healthCheckResults"`
-	Ports     			[]int  				`json:"ports"`
-	ServicePorts    	[]int  				`json:"servicePorts"`
-	StagedAt  			string 				`json:"stagedAt"`
-	StartedAt 			string 				`json:"startedAt"`
-	Version   			string 				`json:"version"`
+	AppID     			string 				  `json:"appId"`
+	Host      			string 				  `json:"host"`
+	ID        			string 			      `json:"id"`
+	HealthCheckResult   []*HealthCheckResult  `json:"healthCheckResults"`
+	Ports     			[]int  				  `json:"ports"`
+	ServicePorts    	[]int  				  `json:"servicePorts"`
+	StagedAt  			string 				  `json:"stagedAt"`
+	StartedAt 			string 				  `json:"startedAt"`
+	Version   			string 				  `json:"version"`
 }
 
 type HealthCheck struct {

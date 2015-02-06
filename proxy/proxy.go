@@ -28,7 +28,10 @@ import (
 	"github.com/golang/glog"
 )
 
-const SO_ORIGINAL_DST = 80
+const (
+	REAL_PANIC      = false
+	SO_ORIGINAL_DST = 80
+)
 
 type ProxyService interface {
 	/* shutdown the proxy service */
@@ -145,7 +148,14 @@ func (px *ProxyStore) ProcessServiceEvent(event *services.ServiceEvent) error {
 */
 func (px *ProxyStore) ProxyConnections() error {
 	glog.V(5).Infof("Starting to listen for incoming connections")
+
 	go func() {
+		defer func() {
+			// I'm not sure about this???
+			if panic := recover(); panic != nil && REAL_PANIC {
+				fmt.Println("Recovered from Embassy panic: %s", panic)
+			}
+		}()
 		for {
 			/* step: wait for a connection */
 			conn, err := px.Listener.Accept()

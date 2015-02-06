@@ -103,8 +103,6 @@ func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 }
 
 func (r *MarathonClient) GetEndpointsFromApplication(application Application, service *services.Service, ignore_health bool) ([]Endpoint, error) {
-	/* step: we need to grab the index from the port mapping - THIS IS SUCH A SHITTY WAY of representing the
-	ports mapping in marathon, HONESTLY!! ... Can i not get a bloody hash!!! */
 	port_index := -1
 	for index, port_mapping := range application.Container.Docker.PortMappings {
 		if port_mapping.ContainerPort == service.Port {
@@ -122,15 +120,32 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 	for _, task := range application.Tasks {
 		/* step: do we need to check the health check? */
 		if ignore_health == false && task.HealthCheckResult != nil {
-			if task.HealthCheckResult.Alive {
-				endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+			/* step: we have to iterate the health checks
+				- find anyone of them where the Alive is false
+				- check if the port index is related to the service we are grabbing endpoints for
+				- and if so, exclude the endpoint from our list;
+				  : @@CHOICE we could remove the endpoint, regardless of service??
+			*/
+			health_check_passed := true
+			for port_index, health := range task.HealthCheckResult {
+				if !health.Alive {
+					if service.Port == application.Container.Docker.PortMappings[port_index].ContainerPort {
+						health_check_passed = false
+					}
+				}
 			}
+			if !health_check_passed {
+				glog.V(4).Infof("Service: %s, endpoint: %s:s health check not passed",
+					service, task.Host, service.Port)
+				break
+			}
+			/* step: else we can add endpoint as it */
+			endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 		} else {
 			/* step: else we can simply add it to the list */
 			endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 		}
 	}
-
 	glog.V(3).Infof("Found %d endpoints in marathon application: %s, service port: %d, endpoints: %v", 	len(endpoints), application.ID, service.Port, endpoints)
 	return endpoints, nil
 }
