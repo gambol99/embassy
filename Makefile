@@ -14,7 +14,6 @@ REPOSITORY=embassy
 .PHONY: build docker release
 
 build:
-	go get
 	go get github.com/tools/godep
 	godep go build -o stage/embassy
 
