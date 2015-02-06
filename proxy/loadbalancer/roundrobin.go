@@ -21,7 +21,6 @@ import (
 	"sync"
 
 	"github.com/gambol99/embassy/proxy/endpoints"
-	"github.com/golang/glog"
 )
 
 type LoadBalancerRR struct {
@@ -50,5 +49,4 @@ func (lb *LoadBalancerRR) SelectEndpoint(endpoints []endpoints.Endpoint) (endpoi
 }
 
 func (lb *LoadBalancerRR) UpdateEndpoints([]endpoints.Endpoint) {
-	glog.V(6).Infof("lb (rr) : updating the endpoints")
 }

@@ -27,7 +27,7 @@ import (
 
 func NewEndpointsService(discovery string, si services.Service) (EndpointsStore, error) {
 	/* step: check the cache first of all */
-	glog.Infof("Initializing endpoints store for service: %s", si)
+	glog.V(4).Infof("Initializing endpoints store for service: %s", si)
 	/* step: check if the store provider is supported */
 	endpoints := new(EndpointsStoreService)
 	endpoints.Service = si
@@ -42,7 +42,7 @@ func NewEndpointsService(discovery string, si services.Service) (EndpointsStore,
 		glog.Errorf("Failed to parse the discovery url: %s, error: %s", discovery, err)
 		return nil, err
 	}
-	glog.Infof("Using endpoints agent: %s, discovery uri: %s", uri.Scheme, discovery)
+	glog.V(3).Infof("Using endpoints agent: %s, discovery uri: %s", uri.Scheme, discovery)
 	var provider EndpointsProvider
 	switch uri.Scheme {
 	case "etcd":

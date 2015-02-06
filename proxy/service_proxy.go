@@ -112,7 +112,7 @@ func (r *Proxier) ProcessEvents() {
 				r.Endpoints.Close()
 				return
 			case <-endpointsChannel:
-				glog.V(3).Infof("Endpoints for service: %s updated, synchronizing endpoints", r.Service)
+				glog.V(4).Infof("Endpoints for service: %s updated, synchronizing endpoints", r.Service)
 				if endpoints, err := r.Endpoints.ListEndpoints(); err != nil {
 					glog.Errorf("Unable to push endpoint changes upstream to loadbalancer, error: %s", err)
 				} else {
