@@ -19,6 +19,6 @@ An alternative would be to build inside a golang container
     git clone https://github.com/gambol99/embassy.git
     cd embassy
     docker run --rm -v "$PWD":/go/src/github.com/gambol99/embassy \
-      -w /go/src/github.com/gambol99/embassy -e GOOS=linux golang:1.3.3 makeA
+      -w /go/src/github.com/gambol99/embassy -e GOOS=linux golang:1.3.3 make
     stage/embassy --help
 
