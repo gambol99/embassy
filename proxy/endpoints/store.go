@@ -69,7 +69,7 @@ func (ds *EndpointsStoreService) ListEndpoints() ([]Endpoint,error) {
 }
 
 func (ds *EndpointsStoreService) PushEventToListeners(event EndpointEvent) {
-	glog.V(3).Infof("Pushing the event: %s to all listeners", event)
+	glog.V(5).Infof("Pushing the event: %s to all listeners", event)
 
 	/* create the event for us and wrap the service */
 	event.Service = ds.Service
@@ -90,7 +90,7 @@ func (ds EndpointsStoreService) Close() {
 }
 
 func (ds *EndpointsStoreService) Synchronize() error {
-	glog.V(3).Infof("Synchronize the endpoints for service: %s", ds.Service)
+	glog.V(4).Infof("Synchronize the endpoints for service: %s", ds.Service)
 	endpoints, err := ds.Provider.List(&ds.Service)
 	if err != nil {
 		glog.Errorf("Attempt to resynchronize the endpoints failed for service: %s, error: %s", ds.Service, err)

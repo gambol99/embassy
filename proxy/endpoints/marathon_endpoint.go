@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/utils"
@@ -117,14 +118,14 @@ func NewMarathonEndpoint() (Marathon, error) {
 	service.callback_url 	  = fmt.Sprintf("http://%s%s", service.service_interface, DEFAULT_EVENTS_URL)
 
 	if err := service.RegisterCallback(); err != nil {
-		glog.Errorf("Failed to register as a callback to marathon events, error: %s", err)
+		glog.Errorf("Failed to register as a callback to Marathon events, error: %s", err)
 		return nil, err
 	}
 
 	/* step: register the http handler and start listening */
 	http.HandleFunc(DEFAULT_EVENTS_URL, service.HandleMarathonEvent)
 	go func() {
-		glog.Infof("Starting to listen to http events from marathon on %s", service.marathon_url)
+		glog.Infof("Starting to listen to http events from Marathon on %s", service.marathon_url)
 		http.ListenAndServe(service.service_interface, nil)
 	}()
 	return service, nil
@@ -138,51 +139,74 @@ func (r *MarathonEndpoint) GetCallbackURL() string {
 	return r.callback_url
 }
 
+func (r *MarathonEndpoint) GetServiceKey(service_name string, service_port int) string {
+	return fmt.Sprintf("%s:%d", service_name, service_port)
+}
+
 func (r *MarathonEndpoint) RegisterCallback() error {
-	glog.Infof("Registering as a events callback with marathon: %s, callback: %s", r.marathon_url, r.callback_url)
+	glog.Infof("Registering as a events callback with Marathon: %s, callback: %s", r.marathon_url, r.callback_url)
 	registration := fmt.Sprintf("%s/%s?callbackUrl=%s", r.marathon_url, MARATHON_API_SUBSCRIPTION, r.callback_url)
 
+	/* step: attempt to register with the marathon callback */
 	glog.V(5).Infof("Marathon Endpoint Registration url: %s", registration)
-	if response, err := http.Post(registration, "application/json", nil); err != nil {
-		glog.Errorf("Failed to register with marathon events callback, error: %s", err)
-		return err
-	} else {
-		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			glog.Errorf("Failed to register with the marathon event callback service, error: %s", response.Body )
-			return errors.New("Failed to register with marathon event callback service")
+	attempts := 1
+	max_attempts := 3
+	for {
+		if response, err := http.Post(registration, "application/json", nil); err != nil {
+			glog.Errorf("Failed to post Marathon registration for callback service, error: %s", err )
+		} else {
+			if response.StatusCode < 200 || response.StatusCode >= 300 {
+				glog.Errorf("Failed to register with the Marathon event callback service, error: %s", response.Body)
+			} else {
+				glog.Infof("Successfully registered with Marathon to receive events")
+				return nil
+			}
 		}
-		glog.Infof("Successfully registered with marathon to receive events")
+		/* check: have we reached the max attempts? */
+		if attempts >= max_attempts {
+			/* choice: if after x attempts we can't register with Marathon, there's not much point */
+			glog.Fatalf("Failed to register with Marathon's callback service %d time, no point in continuing", attempts)
+		}
+
+		glog.Errorf("Failed to register with Marathon as callback service, attempt: %d, retrying", attempts)
+		/* choice: lets go to sleep for x seconds */
+		time.Sleep(3 * time.Second)
+		attempts += 1
 	}
 	return nil
 }
 
 func (r *MarathonEndpoint) DeregisterCallback(callback string, marathon string) error {
 	glog.Infof("Deregistering the Marathon events callback: %s from: %s", callback, marathon)
-
-
+	/** @@TODO := needs to be implemented, not to leave loose callbacks around */
 	return nil
 }
 
 func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, request *http.Request) {
-	glog.V(5).Infof("Recieved an marathon event from service")
-	/* step: print and decode */
-	var event MarathonStatusUpdate
+	glog.V(6).Infof("Recieved an Marathon event from service")
+	var event MarathonEvent
 	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&event); err != nil {
-		glog.Errorf("Failed to decode the marathon event: %s, error: %s", request.Body, err )
+		glog.Errorf("Failed to decode the Marathon event: %s, error: %s", request.Body, err )
 	} else {
-		if event.EventType == "status_update_event" {
-			glog.V(3).Infof("Recieved a service update for marathon application: %s", event.AppID)
-			/* @@TODO need to think more about how we do this */
-			for service, listerner := range r.services {
-				if strings.HasPrefix(service, event.AppID) {
-					go func() {
-						listerner <- true
-					}()
-				}
+		switch event.EventType {
+		case "health_status_changed_event":
+			glog.V(5).Infof("Marathon application: %s health status has been altered, resyncing", event.AppID)
+		case "status_update_event":
+			glog.V(5).Infof("Marathon application: %s status update, resyncing endpoints", event.AppID)
+		default:
+			glog.V(10).Infof("Skipping the Marathon event, as it's not a status update, type: %s", event.EventType)
+			return
+		}
+		/* step: we notify the receiver */
+		for service, listener := range r.services {
+			//glog.Infof("FOUND SERVICE, key: %s, channel: %v", service, listener)
+			if strings.HasPrefix(service, event.AppID) {
+				//glog.Infof("SENDING EVENT, key: %s, channel: %v", service, listener)
+				go func() {
+					listener <- true
+				}()
 			}
-		} else {
-			glog.V(10).Infof("Skipping the marathon event, as it's not a status update, type: %s", event.EventType)
 		}
 	}
 }
@@ -191,7 +215,7 @@ func (r MarathonEndpoint) Watch(service_name string, service_port int, channel c
 	r.Lock()
 	defer r.Unlock()
 	service_key := r.GetServiceKey(service_name, service_port)
-	glog.V(10).Infof("Adding a watch for marathong application: %s:%d", service_name, service_port)
+	glog.V(10).Infof("Adding a watch for Marathon application: %s:%d", service_name, service_port)
 	r.services[service_key] = channel
 }
 
@@ -199,23 +223,19 @@ func (r MarathonEndpoint) Remove(service_name string, service_port int, channel 
 	r.Lock()
 	defer r.Unlock()
 	service_key := r.GetServiceKey(service_name, service_port)
-	glog.Infof("Deleting the watch for marathon application: %s:%d", service_name, service_port)
+	glog.V(10).Infof("Deleting the watch for Marathon application: %s:%d", service_name, service_port)
 	delete(r.services,service_key)
-}
-
-func (r *MarathonEndpoint) GetServiceKey(service_name string, service_port int) string {
-	return fmt.Sprintf("%s:%d", service_name, service_port)
 }
 
 func (r *MarathonEndpoint) Application(id string) (Application, error) {
 	if response, err := r.Get(fmt.Sprintf("%s%s", MARATHON_API_APPS, id)); err != nil {
-		glog.Errorf("Failed to retrieve a list of application in marathon, error: %s", err)
+		glog.Errorf("Failed to retrieve a list of application in Marathon, error: %s", err)
 		return Application{}, err
 	} else {
 		var marathonApplication MarathonApplication
 		/* step: we need to un-marshall the json response from marathon */
 		if err = json.Unmarshal([]byte(response), &marathonApplication); err != nil {
-			glog.Errorf("Failed to unmarshall the json response from marathon, response: %s, error: %s", response, err)
+			glog.Errorf("Failed to unmarshall the json response from Marathon, response: %s, error: %s", response, err)
 			return Application{}, err
 		}
 		return marathonApplication.Application, nil
@@ -225,12 +245,12 @@ func (r *MarathonEndpoint) Application(id string) (Application, error) {
 func (r *MarathonEndpoint) Applications() (applications Applications, err error) {
 	var response string
 	if response, err = r.Get(MARATHON_API_APPS); err != nil {
-		glog.Errorf("Failed to retrieve a list of application in marathon, error: %s", err)
+		glog.Errorf("Failed to retrieve a list of application in Marathon, error: %s", err)
 		return
 	} else {
 		/* step: we need to un-marshall the json response from marathon */
 		if err = json.Unmarshal([]byte(response), &applications); err != nil {
-			glog.Errorf("Failed to unmarshall the json response from marathon, response: %s, error: %s", response, err)
+			glog.Errorf("Failed to unmarshall the json response from Marathon, response: %s, error: %s", response, err)
 			return
 		}
 		return
@@ -240,7 +260,7 @@ func (r *MarathonEndpoint) Applications() (applications Applications, err error)
 func (r *MarathonEndpoint) AllTasks() (tasks Tasks, err error) {
 	var response string
 	if response, err = r.Get(MARATHON_API_TASKS); err != nil {
-		glog.Errorf("Failed to retrieve a list of tasks in marathon, error: %s", err)
+		glog.Errorf("Failed to retrieve a list of tasks in Marathon, error: %s", err)
 		return
 	} else {
 		/* step: we need to un-marshall the json response from marathon */
@@ -255,12 +275,12 @@ func (r *MarathonEndpoint) AllTasks() (tasks Tasks, err error) {
 func (r *MarathonEndpoint) Tasks(application_id string) (tasks Tasks, err error) {
 	var response string
 	if response, err = r.Get(fmt.Sprintf("%s%s/tasks", MARATHON_API_APPS, application_id ) ); err != nil {
-		glog.Errorf("Failed to retrieve a list of application tasks in marathon, error: %s", err)
+		glog.Errorf("Failed to retrieve a list of application tasks in Marathon, error: %s", err)
 		return
 	} else {
 		/* step: we need to un-marshall the json response from marathon */
 		if err = json.Unmarshal([]byte(response), &tasks); err != nil {
-			glog.Errorf("Failed to unmarshall the json response from marathon, response: %s, error: %s", response, err)
+			glog.Errorf("Failed to unmarshall the json response from Marathon, response: %s, error: %s", response, err)
 			return
 		}
 		return
@@ -274,15 +294,16 @@ func (r *MarathonEndpoint) Get(uri string) (string, error) {
 		return "", err
 	} else {
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			glog.Errorf("Invalid response from marathon, url: %s, code: %d, response: %s",
+			glog.Errorf("Invalid response from Marathon, url: %s, code: %d, response: %s",
 				url, response.StatusCode, response.Body)
-			return "", errors.New("Invalid response from marathon service, code:" + fmt.Sprintf("%s", response.StatusCode))
+			return "", errors.New("Invalid response from Marathon service, code:" + fmt.Sprintf("%s", response.StatusCode))
 		}
 		defer response.Body.Close()
 		if response_body, err := ioutil.ReadAll(response.Body); err != nil {
 			glog.Errorf("Failed to read in the body of the response, error: %s", err)
 			return "", err
 		} else {
+			glog.V(20).Infof("Get() response: %s", response_body)
 			return string(response_body), nil
 		}
 	}
@@ -319,6 +340,7 @@ type Application struct {
 
 type MarathonEvent struct {
 	EventType string `json:"eventType"`
+	AppID     string `json:"appId"`
 }
 
 type MarathonStatusUpdate struct {
@@ -331,6 +353,15 @@ type MarathonStatusUpdate struct {
 	Host       string `json:"host"`
 	Ports      []int  `json:"ports,omitempty"`
 	Version    string `json:"version,omitempty"`
+}
+
+type MarathonHealthCheckChanged struct {
+	EventType  string `json:"eventType"`
+	Timestamp  string `json:"timestamp,omitempty"`
+	AppID      string `json:"appId"`
+	TaskID     string `json:"taskId"`
+	Version    string `json:"version,omitempty"`
+	Alive  	   bool   `json:"alive"`
 }
 
 type MarathonApplication struct {
@@ -367,14 +398,15 @@ type Tasks struct {
 }
 
 type Task struct {
-	AppID     		string `json:"appId"`
-	Host      		string `json:"host"`
-	ID        		string `json:"id"`
-	Ports     		[]int  `json:"ports"`
-	ServicePorts    []int  `json:"servicePorts"`
-	StagedAt  		string `json:"stagedAt"`
-	StartedAt 		string `json:"startedAt"`
-	Version   		string `json:"version"`
+	AppID     			string 				  `json:"appId"`
+	Host      			string 				  `json:"host"`
+	ID        			string 			      `json:"id"`
+	HealthCheckResult   []*HealthCheckResult  `json:"healthCheckResults"`
+	Ports     			[]int  				  `json:"ports"`
+	ServicePorts    	[]int  				  `json:"servicePorts"`
+	StagedAt  			string 				  `json:"stagedAt"`
+	StartedAt 			string 				  `json:"startedAt"`
+	Version   			string 				  `json:"version"`
 }
 
 type HealthCheck struct {
@@ -384,4 +416,13 @@ type HealthCheck struct {
 	IntervalSeconds    int    `json:"intervalSeconds,omitempty"`
 	PortIndex          int    `json:"portIndex,omitempty"`
 	TimeoutSeconds     int    `json:"timeoutSeconds,omitempty"`
+}
+
+type HealthCheckResult struct {
+ 	Alive  				bool   `json:"alive"`
+	ConsecutiveFailures int    `json:"consecutiveFailures"`
+	FirstSuccess		string `json:"firstSuccess"`
+	LastFailure			string `json:"lastFailure"`
+	LastSuccess			string `json:"lastSuccess"`
+	TaskID				string `json:"taskId"`
 }

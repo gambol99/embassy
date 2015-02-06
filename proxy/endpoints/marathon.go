@@ -29,12 +29,17 @@ import (
 )
 
 var (
-	/* the lock is used to register a callback provider on first service request -
+	/*
+		the lock is used to register a callback provider on first service request -
 		@todo - we should probably do this on startup rather than waiting
 	*/
 	marathon_lock sync.Once
 	/* the reference to the endpoint provider */
 	marathon Marathon
+)
+
+var (
+	MarathonServiceRegex = regexp.MustCompile("^(.*)/([0-9]+);([0-9]+)")
 )
 
 /* ===================================================================
@@ -74,41 +79,77 @@ func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 		glog.Errorf("Failed to retrieve the service port, error: %s", err)
 		return nil, err
 	} else {
-		if application, err := marathon.Application(name); err != nil {
+		/* step: we retrieve the marathon application */
+		application, err := marathon.Application(name)
+		if err != nil {
 			glog.Errorf("Failed to retrieve a list of tasks for application: %s, error: %s", service.ID, err)
 			return nil, err
-		} else {
-			/* step: iterate the tasks and build the endpoints */
-			endpoints := make([]Endpoint,0)
-			/* check: does the application have any active tasks ? */
-			if len(application.Tasks) <= 0 {
-				return endpoints, nil
-			}
-			/* step: iterate the tasks and extract the ports */
-			port_index := -1
-			/* check: check we've decoded the docker */
-			for index, port_mapping := range application.Container.Docker.PortMappings {
-				if port_mapping.ContainerPort == service.Port {
-					port_index = index
-				}
-			}
-			/* check: did we find the port? */
-			if port_index < 0 {
-				glog.Errorf("The port: %s is not presenly exposed by the marathon application: %s", service.Port, application.ID)
-				return endpoints, errors.New("The service port is not presently exposed by the application: " + application.ID)
-			}
-			/*
-				step: we iterate the tasks and extract the ports - THIS IS SUCH A SHITTY WAY of representing the
-				ports mapping in marathon, HONESTLY!! ... Can i not get a bloody hash!!!
-			 */
-			for _, task := range application.Tasks {
-				endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
-			}
-			glog.V(3).Infof("Found %d endpoints in marathon application: %s, service port: %d, endpoints: %v",
-				len(endpoints), application.ID, service.Port, endpoints)
-			return endpoints, nil
+		}
+
+		/* step: does the application have any active tasks ? */
+		if len(application.Tasks) <= 0 {
+			glog.V(3).Infof("The Marathon application: %s doesn't have any endpoints", application.ID)
+			return make([]Endpoint,0), nil
+		}
+
+		/* step: iterate the tasks and build the endpoints */
+		endpoints, err := r.GetEndpointsFromApplication(application, service, false)
+		if err != nil {
+			glog.Errorf("Failed to extract the endpoints for Marathon application: %s, error: %s", application.ID, err)
+			return nil, err
+		}
+		return endpoints, nil
+	}
+}
+
+func (r *MarathonClient) GetEndpointsFromApplication(application Application, service *services.Service, ignore_health bool) ([]Endpoint, error) {
+	port_index := -1
+	for index, port_mapping := range application.Container.Docker.PortMappings {
+		if port_mapping.ContainerPort == service.Port {
+			port_index = index
 		}
 	}
+	/* step: did we find the port in the mapping */
+	if port_index < 0 {
+		glog.Errorf("The port: %s is not presenly exposed by the marathon application: %s", service.Port, application.ID)
+		return nil, errors.New("The service port is not presently exposed by the application: " + application.ID)
+	}
+
+	/* step: we iterate the tasks and extract the ports */
+	endpoints := make([]Endpoint,0)
+	for _, task := range application.Tasks {
+		/* step: do we need to check the health check? */
+		if ignore_health == false && task.HealthCheckResult != nil {
+			/* step: we have to iterate the health checks
+				- find anyone of them where the Alive is false
+				- check if the port index is related to the service we are grabbing endpoints for
+				- and if so, exclude the endpoint from our list;
+				  : @@CHOICE we could remove the endpoint, regardless of service??
+			*/
+			for port_index, health := range task.HealthCheckResult {
+				if health == nil {
+					glog.V(3).Infof("The health check for application: %s, task: %s:%d is missing",
+						application.ID, task.Host, task.Ports[port_index])
+					endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+				} else {
+					if !health.Alive {
+						if service.Port == application.Container.Docker.PortMappings[port_index].ContainerPort {
+							glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed",
+								service, task.Host, service.Port)
+						}
+					} else {
+						endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+					}
+				}
+			}
+		} else {
+			/* step: else we can simply add it to the list */
+			endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+		}
+	}
+	glog.V(3).Infof("Found %d endpoints in marathon application: %s, service port: %d, endpoints: %v",
+		len(endpoints), application.ID, service.Port, endpoints)
+	return endpoints, nil
 }
 
 func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel, error) {
@@ -145,14 +186,11 @@ func (r *MarathonClient) Close() {
 	r.shutdown_channel <- true
 }
 
-var MarathonServiceRegex = regexp.MustCompile("^(.*)/([0-9]+);([0-9]+)")
-
 func (r *MarathonClient) ServiceID(service_id string) (string, int, error) {
 	if elements := MarathonServiceRegex.FindAllStringSubmatch(service_id, -1); len(elements) > 0 {
 		section := elements[0]
 		service_name := section[1]
 		service_port, _ := strconv.Atoi(section[2])
-		glog.Infof("SERVICE: id: %s, name: %s, port: %d", service_id, service_name, service_port)
 		return service_name, service_port, nil
 	} else {
 		glog.Errorf("The service definition for service: %s, when using marathon as a provider must have a service port", service_id)
