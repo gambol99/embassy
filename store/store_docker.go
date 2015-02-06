@@ -185,7 +185,6 @@ func (r *DockerServiceStore) ProcessDockerDestroy(containerID string, channel Ba
 
 func (r *DockerServiceStore) PushServices(channel BackendServiceChannel, definitions []DefinitionEvent, operation DefinitionOperation) {
 	for _, definition := range definitions {
-		glog.V(3).Infof("Pushing service: %s to services store", definition)
 		definition.Operation = operation
 		channel <- definition
 	}

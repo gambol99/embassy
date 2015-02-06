@@ -152,7 +152,6 @@ func (r *MarathonClient) ServiceID(service_id string) (string, int, error) {
 		section := elements[0]
 		service_name := section[1]
 		service_port, _ := strconv.Atoi(section[2])
-		glog.Infof("SERVICE: id: %s, name: %s, port: %d", service_id, service_name, service_port)
 		return service_name, service_port, nil
 	} else {
 		glog.Errorf("The service definition for service: %s, when using marathon as a provider must have a service port", service_id)
