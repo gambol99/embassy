@@ -9,7 +9,7 @@ Is a service proxy | load balancer for docker container services, using etcd | c
 >   - (recommended) run on the docker host it self and use port mapping between host and container to permit the services
 >   - run as in a seperater container and use links and iptables to bridge the connections
 
-Embassy run is a single tcp port with iptables dnatting the destination and port over to the proxy from the virtual proxy ip (namely the docker0 interface ip)
+Embassy runs on a 'single' tcp port (default 9999) with iptables dnatting/redirecting virtual ip (the docker0 bridge ip by default) traffic and load balancing the traffic to the backends.  
 
 #### **Service Endpoint Discovery**
 ------
