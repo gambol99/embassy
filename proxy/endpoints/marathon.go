@@ -93,7 +93,7 @@ func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 		}
 
 		/* step: iterate the tasks and build the endpoints */
-		endpoints, err := r.GetEndpointsFromApplication(application, service, false)
+		endpoints, err := r.GetEndpointsFromApplication(application, service)
 		if err != nil {
 			glog.Errorf("Failed to extract the endpoints for Marathon application: %s, error: %s", application.ID, err)
 			return nil, err
@@ -102,41 +102,63 @@ func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 	}
 }
 
-func (r *MarathonClient) GetEndpointsFromApplication(application Application, service *services.Service, ignore_health bool) ([]Endpoint, error) {
-	port_index := -1
-	for index, port_mapping := range application.Container.Docker.PortMappings {
-		if port_mapping.ContainerPort == service.Port {
-			port_index = index
+func (r *MarathonClient) GetEndpointsFromApplication(application Application, service *services.Service) ([]Endpoint, error) {
+
+	/* step: we get the port index of our service from the port mappings */
+	port_index, err := r.GetServicePortFromApplication(service, application)
+	if err != nil {
+		glog.Errorf("Failed to retrieve the port mapping index for applcation: %s, service: %s", application, service)
+		return nil, err
+	}
+
+	/* step: check if we have any health check for this service */
+	service_has_checks := false
+	if application.HealthChecks != nil {
+		for _, health := range application.HealthChecks {
+			/* check: is it related to us? */
+			if health.PortIndex == port_index {
+				service_has_checks = true
+				break
+			}
 		}
 	}
-	/* step: did we find the port in the mapping */
-	if port_index < 0 {
-		glog.Errorf("The port: %s is not presenly exposed by the marathon application: %s", service.Port, application.ID)
-		return nil, errors.New("The service port is not presently exposed by the application: " + application.ID)
-	}
+
+	/*  notes: does the application have health checks? One thing i've noticed (and this could be a misconfiguration by me, but) is
+		it can take a number of seconds to minutes for health checks to become active. While the health isn't yet active, the
+		HealthCheckResult in the task json is missing, not false. So we can be in a situation where endpoints have been added, they haven't
+		been checked yet, but the task health check status is missing.
+
+			- check if the 'application' NOT just the task has a health check as its related to our service port
+			- if yes, but the HealthCheckResult is missing or empty we have to assume the health check hasn't been added / processed yet.
+			  Either way the endpoint hasn't been validated as 'passed' and so we must remove it from the active endpoints
+	*/
 
 	/* step: we iterate the tasks and extract the ports */
 	endpoints := make([]Endpoint,0)
 	for _, task := range application.Tasks {
-		/* step: do we need to check the health check? */
-		if ignore_health == false && task.HealthCheckResult != nil {
+		/* check: if the application has checks, but the task does not - it's not been validated yet */
+		if service_has_checks && task.HealthCheckResult == nil {
+			glog.V(4).Infof("The health for application: %s, task: %s:%d hasn't yet been performed, excluding from endpoints",
+				application.ID, task.Host, service.Port)
+		} else if service_has_checks && task.HealthCheckResult != nil {
 			/* step: we have to iterate the health checks
 				- find anyone of them where the Alive is false
 				- check if the port index is related to the service we are grabbing endpoints for
 				- and if so, exclude the endpoint from our list;
 				  : @@CHOICE we could remove the endpoint, regardless of service??
 			*/
-			for port_index, health := range task.HealthCheckResult {
-				if health == nil {
-					glog.V(3).Infof("The health check for application: %s, task: %s:%d is missing",
-						application.ID, task.Host, task.Ports[port_index])
-					endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+			if task.HealthCheckResult == nil {
+				glog.V(4).Infof("The health check for application: %s, task: %s:%d is missing", application.ID,
+					task.Host, service.Port)
+			} else {
+				if len(task.HealthCheckResult) < port_index {
+					glog.V(5).Infof("The health checks performed for application: %s does not have our service: %s yet",
+						application, service)
 				} else {
-					if !health.Alive {
-						if service.Port == application.Container.Docker.PortMappings[port_index].ContainerPort {
-							glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed",
-								service, task.Host, service.Port)
-						}
+					health_check := task.HealthCheckResult[port_index]
+					if !health_check.Alive {
+						glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed",
+							service, task.Host, service.Port)
 					} else {
 						endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 					}
@@ -150,6 +172,19 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 	glog.V(3).Infof("Found %d endpoints in marathon application: %s, service port: %d, endpoints: %v",
 		len(endpoints), application.ID, service.Port, endpoints)
 	return endpoints, nil
+}
+
+func (r *MarathonClient) GetServicePortFromApplication(service *services.Service, application Application) (int, error) {
+	port_index := -1
+	for index, port_mapping := range application.Container.Docker.PortMappings {
+		if port_mapping.ContainerPort == service.Port {
+			port_index = index
+		}
+	}
+	if port_index < 0 {
+		return 0, errors.New("Unable to find service port for service " + service.String())
+	}
+	return port_index, nil
 }
 
 func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel, error) {
