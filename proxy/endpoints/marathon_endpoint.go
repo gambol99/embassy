@@ -191,9 +191,9 @@ func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, reque
 	} else {
 		switch event.EventType {
 		case "health_status_changed_event":
-			glog.V(5).Infof("Marathon application: %s health status has been altered, resyncing", event.AppID)
+			glog.V(4).Infof("Marathon application: %s health status has been altered, resyncing", event.AppID)
 		case "status_update_event":
-			glog.V(5).Infof("Marathon application: %s status update, resyncing endpoints", event.AppID)
+			glog.V(4).Infof("Marathon application: %s status update, resyncing endpoints", event.AppID)
 		default:
 			glog.V(10).Infof("Skipping the Marathon event, as it's not a status update, type: %s", event.EventType)
 			return
