@@ -196,7 +196,7 @@ The consul agent watches for changes on catalog services; the manner in which yo
       $ docker run -ti --rm -e BACKEND_APACHE_80='frontend_http;80' centos /bin/bash
       [e6d41829bd76] $ curl 172.17.42.1
 
-#### **Marathon Notes** (Beta Version - i.e works, but only added a couple days ago)
+#### **Marathon Notes** 
 
 In order to use Marathon as a service discovery provider you need to enable the events callback service via [--event_subscriber http_callback](http://mesosphere.github.io/marathon/docs/event-bus.html), which is obviously accessible by the docker host embassy is running on (Honestly!, someone did this!). Embassy will register itself as a callback with Marathon on default port of 10001 (though you can change this via the command line options).
 
