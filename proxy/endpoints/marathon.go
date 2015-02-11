@@ -57,7 +57,6 @@ func NewMarathonClient(uri string) (EndpointsProvider, error) {
 	glog.Infof("Creating Marathon discovery agent, marathon: %s", uri)
 	/* step: check if endpoint has been create yet and if not create it */
 	marathon_lock.Do(func() {
-		/* step: we need to register a endpoint for marathon events */
 		var err error
 		marathon, err = NewMarathonEndpoint()
 		if err != nil {

@@ -95,6 +95,7 @@ type MarathonEndpoint struct {
 
 func NewMarathonEndpoint() (Marathon, error) {
 	glog.Infof("Creating Marathon Endpoint service, callback on port: %d", MarathonEndpointOptions.events_port)
+
 	/*
 		- extract the marathon and callback urls
 		- register the callback with marathon
