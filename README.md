@@ -1,5 +1,6 @@
 
-[![Build Status](https://drone.io/github.com/gambol99/embassy/status.png)](https://drone.io/github.com/gambol99/embassy/latest)
+> - [![Build Status](https://drone.io/github.com/gambol99/embassy/status.png)](https://drone.io/github.com/gambol99/embassy/latest)
+> - [![GoDoc](http://godoc.org/github.com/gambol99/embassy?status.png)](http://godoc.org/github.com/gambol99/embassy)
 
 ### **Embassy**
 
