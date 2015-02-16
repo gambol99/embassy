@@ -25,6 +25,12 @@ import (
 	"github.com/golang/glog"
 )
 
+const (
+	DISCOVERY_ETCD 		= "etcd"
+	DISCOVERY_CONSUL	= "consul"
+	DISCOVERY_MARATHON  = "marathon"
+)
+
 func NewEndpointsService(discovery string, si services.Service) (EndpointsStore, error) {
 	/* step: check the cache first of all */
 	glog.V(4).Infof("Initializing endpoints store for service: %s", si)
@@ -45,11 +51,11 @@ func NewEndpointsService(discovery string, si services.Service) (EndpointsStore,
 	glog.V(3).Infof("Using endpoints agent: %s, discovery uri: %s", uri.Scheme, discovery)
 	var provider EndpointsProvider
 	switch uri.Scheme {
-	case "etcd":
+	case DISCOVERY_ETCD:
 		provider, err = NewEtcdStore(discovery)
-	case "consul":
+	case DISCOVERY_CONSUL:
 		provider, err = NewConsulClient(discovery)
-	case "marathon":
+	case DISCOVERY_MARATHON:
 		provider, err = NewMarathonClient(discovery)
 	default:
 		glog.Errorf("Failed to create endpoints agent, the backend: %s is not supported", discovery)
