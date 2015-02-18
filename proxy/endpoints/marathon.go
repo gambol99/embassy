@@ -135,36 +135,42 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 	/* step: we iterate the tasks and extract the ports */
 	endpoints := make([]Endpoint,0)
 	for _, task := range application.Tasks {
-		/* check: if the application has checks, but the task does not - it's not been validated yet */
-		if service_has_checks && task.HealthCheckResult == nil {
-			glog.V(4).Infof("The health for application: %s, task: %s:%d hasn't yet been performed, excluding from endpoints",
-				application.ID, task.Host, service.Port)
-		} else if service_has_checks && task.HealthCheckResult != nil {
-			/* step: we have to iterate the health checks
-				- find anyone of them where the Alive is false
-				- check if the port index is related to the service we are grabbing endpoints for
-				- and if so, exclude the endpoint from our list;
-				  : @@CHOICE we could remove the endpoint, regardless of service??
-			*/
-			if task.HealthCheckResult == nil {
-				glog.V(4).Infof("The health check for application: %s, task: %s:%d is missing", application.ID,
-					task.Host, service.Port)
-			} else {
-				if len(task.HealthCheckResult) < port_index {
-					glog.V(5).Infof("The health checks performed for application: %s does not have our service: %s yet",
-						application, service)
+		/* check: are we filtering on health checks? */
+		if config.Options.Filter_On_Health {
+			/* check: if the application has checks, but the task does not - it's not been validated yet */
+			if service_has_checks && task.HealthCheckResult == nil {
+				glog.V(4).Infof("The health for application: %s, task: %s:%d hasn't yet been performed, excluding from endpoints",
+					application.ID, task.Host, service.Port)
+			} else if service_has_checks && task.HealthCheckResult != nil {
+				/* step: we have to iterate the health checks
+					- find anyone of them where the Alive is false
+					- check if the port index is related to the service we are grabbing endpoints for
+					- and if so, exclude the endpoint from our list;
+					  : @@CHOICE we could remove the endpoint, regardless of service??
+				*/
+				if task.HealthCheckResult == nil {
+					glog.V(4).Infof("The health check for application: %s, task: %s:%d is missing", application.ID,
+						task.Host, service.Port)
 				} else {
-					health_check := task.HealthCheckResult[port_index]
-					if !health_check.Alive {
-						glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed",
-							service, task.Host, service.Port)
+					if len(task.HealthCheckResult) < port_index {
+						glog.V(5).Infof("The health checks performed for application: %s does not have our service: %s yet",
+							application, service)
 					} else {
-						endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+						health_check := task.HealthCheckResult[port_index]
+						if !health_check.Alive {
+							glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed",
+								service, task.Host, service.Port)
+						} else {
+							endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+						}
 					}
 				}
+			} else {
+				/* step: else we can simply add it to the list */
+				endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 			}
 		} else {
-			/* step: else we can simply add it to the list */
+			/* step: we don't care about health checks, we simply add it to the list */
 			endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 		}
 	}

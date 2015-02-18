@@ -24,6 +24,7 @@ import (
 	consulapi "github.com/armon/consul-api"
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/golang/glog"
+	"github.com/gambol99/embassy/config"
 )
 
 type ConsulClient struct {
@@ -116,8 +117,9 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 
 func (r *ConsulClient) List(si *services.Service) ([]Endpoint, error) {
 	glog.V(5).Infof("Retrieving a list of the endpoints for service: %s", si)
+	health_checks_required := config.Options.Filter_On_Health
 	/* step: query for the service, along with health checks */
-	if services, _, err := r.client.Health().Service(si.Name, "", true, &consulapi.QueryOptions{}); err != nil {
+	if services, _, err := r.client.Health().Service(si.Name, "", health_checks_required, &consulapi.QueryOptions{}); err != nil {
 		glog.Errorf("Failed to retrieve a list of services for service: %s", si)
 		return nil, err
 	} else {
