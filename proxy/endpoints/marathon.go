@@ -110,19 +110,8 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 		return nil, err
 	}
 
-	/* step: check if we have any health check for this service */
-	service_has_checks := false
-	if application.HealthChecks != nil {
-		for _, health := range application.HealthChecks {
-			/* check: is it related to us? */
-			if health.PortIndex == port_index {
-				service_has_checks = true
-				break
-			}
-		}
-	}
-
-	/*  notes: does the application have health checks? One thing i've noticed (and this could be a misconfiguration by me, but) is
+	/*
+		Notes: does the application have health checks? One thing i've noticed (and this could be a misconfiguration by me, but) is
 		it can take a number of seconds to minutes for health checks to become active. While the health isn't yet active, the
 		HealthCheckResult in the task json is missing, not false. So we can be in a situation where endpoints have been added, they haven't
 		been checked yet, but the task health check status is missing.
@@ -130,45 +119,52 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 			- check if the 'application' NOT just the task has a health check as its related to our service port
 			- if yes, but the HealthCheckResult is missing or empty we have to assume the health check hasn't been added / processed yet.
 			  Either way the endpoint hasn't been validated as 'passed' and so we must remove it from the active endpoints
+
+		Extra Notes: As far as i'm aware there is no way to infer the port from the health check result, so we can't work out if the failed health
+		is for our service port or another one. In way, it doesn't matter though, as Marathon will fail and restart a application if ANY of the
+		health checks are in a failed state.
 	*/
+
+	/* check: does the application have health checks? */
+	application_health_checks := false
+	if application.HealthChecks != nil && len(application.HealthChecks) > 0 {
+		glog.V(6).Infof("The application: %s has health checks", application.ID)
+		application_health_checks = true
+	}
 
 	/* step: we iterate the tasks and extract the ports */
 	endpoints := make([]Endpoint,0)
-	for _, task := range application.Tasks {
-		/* check: if the application has checks, but the task does not - it's not been validated yet */
-		if service_has_checks && task.HealthCheckResult == nil {
-			glog.V(4).Infof("The health for application: %s, task: %s:%d hasn't yet been performed, excluding from endpoints",
-				application.ID, task.Host, service.Port)
-		} else if service_has_checks && task.HealthCheckResult != nil {
-			/* step: we have to iterate the health checks
-				- find anyone of them where the Alive is false
-				- check if the port index is related to the service we are grabbing endpoints for
-				- and if so, exclude the endpoint from our list;
-				  : @@CHOICE we could remove the endpoint, regardless of service??
-			*/
-			if task.HealthCheckResult == nil {
-				glog.V(4).Infof("The health check for application: %s, task: %s:%d is missing", application.ID,
-					task.Host, service.Port)
-			} else {
-				if len(task.HealthCheckResult) < port_index {
-					glog.V(5).Infof("The health checks performed for application: %s does not have our service: %s yet",
-						application, service)
-				} else {
-					health_check := task.HealthCheckResult[port_index]
-					if !health_check.Alive {
-						glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed",
-							service, task.Host, service.Port)
-					} else {
-						endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
+	if application.Tasks != nil {
+		for _, task := range application.Tasks {
+			/* check: are we filtering on health checks? */
+			if config.Options.Filter_On_Health && application_health_checks {
+
+				/* step: if the task does not have any health check results, it means it's not been accessed yet,
+				we thus consider it to be failed */
+				if task.HealthCheckResult == nil || len(task.HealthCheckResult) <= 0 {
+					glog.V(5).Infof("The health for application: %s, task: %s:%d hasn't yet been performed, excluding from endpoints",
+						application.ID, task.Host, service.Port)
+					continue
+				}
+
+				/* step: we iterate the tasks and check if ANY of the health checks has failed */
+				passed_health := true
+				for _, check := range task.HealthCheckResult {
+					if check.Alive == false {
+						glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed", service, task.Host, service.Port)
+						passed_health = false
 					}
 				}
+				/* step: did it pass all the health checks? */
+				if !passed_health {
+					continue
+				}
 			}
-		} else {
-			/* step: else we can simply add it to the list */
+			/* step: add the endpoint to the list */
 			endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 		}
 	}
-	glog.V(3).Infof("Found %d endpoints in marathon application: %s, service port: %d, endpoints: %v",
+	glog.V(3).Infof("Found %d endpoints in application: %s, service port: %d, endpoints: %v",
 		len(endpoints), application.ID, service.Port, endpoints)
 	return endpoints, nil
 }

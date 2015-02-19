@@ -25,6 +25,7 @@ const (
 	DEFAULT_INTERFACE  		= "eth0"
 	DEFAULT_DISCOVERY_URI  	= "consul://127.0.0.1:8500"
 	DEFAULT_SERVICE_PREFIX 	= "BACKEND_"
+	DEFAULT_FILTER_HEALTH   = true
 )
 
 var Options struct {
@@ -36,6 +37,8 @@ var Options struct {
 	Discovery_url string
 	/* the service prefix */
 	Service_prefix string
+	/* whether or not to filter endpoints by the provider health checks */
+	Filter_On_Health bool
 }
 
 func init() {
@@ -43,4 +46,5 @@ func init() {
 	flag.IntVar(&Options.Proxy_port, "port", DEFAULT_PROXY_PORT, "the tcp port which the proxy should listen on")
 	flag.StringVar(&Options.Discovery_url, "discovery", DEFAULT_DISCOVERY_URI, "the discovery backend to pull the services from")
 	flag.StringVar(&Options.Service_prefix, "prefix", DEFAULT_SERVICE_PREFIX, "the prefix used to distinguish a backend service")
+	flag.BoolVar(&Options.Filter_On_Health, "filter", DEFAULT_FILTER_HEALTH, "whether or not to filter out endpoints not passing health checks")
 }
