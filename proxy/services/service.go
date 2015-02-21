@@ -26,10 +26,14 @@ import (
 type ServiceID string
 
 type Service struct {
-	ID       ServiceID
-	Name     string
+	// The identifier for the service
+	ID ServiceID
+	// The name of the service - an extraction from the ID
+	Name string
+	// The source address of the container which requested it
 	Consumer string
-	Port     int
+	// The port the service is running on
+	Port int
 }
 
 func (s Service) IsValid() error {

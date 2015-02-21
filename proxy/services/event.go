@@ -27,19 +27,15 @@ const (
 
 type Operation int
 
-func (r *Operation) String() string {
-	return fmt.Sprintf("%d", *r)
-}
-
 type ServiceEvent struct {
-	/* the operation type - adding or removing a service */
+	// the operation type - adding or removing a service
 	Action Operation
-	/* the service definition */
+	// the service definition
 	Service Service
 }
 
 func (r ServiceEvent) String() string {
-	return fmt.Sprintf("action: %s, service: %s", r.Action, r.Service)
+	return fmt.Sprintf("action: %d, service: %s", r.Action, r.Service)
 }
 
 func (r ServiceEvent) IsServiceRequest() bool {

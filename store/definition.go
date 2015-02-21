@@ -26,24 +26,19 @@ import (
 	"github.com/gambol99/embassy/utils"
 )
 
-const (
-	DEFINITION_SERVICE_ADDED   = 0
-	DEFINITION_SERVICE_REMOVED = 1
-)
+type Definition struct {
+	// The source ip of the container request the service
+	SourceAddress string
+	// The name of the service extracted from the definition
+	Name string
+	// The service definition itself
+	Definition string
+	// The operation type, i.e. adding or removing
+	Adding bool
+}
 
-/*
-  SERVICE=<SERVICE_NAME>;<PORT>;
-  BACKEND=etcd://localhost:4001
-  BACKEND_REDIS_MASTER=redis.master;PORT
-  BACKEND_REDIS_MASTER=redis.master
-  BACKEND_REDIS_MASTER=/services/prod/redis/master/6379/*;PORT;OPTION=VALUE,;
-*/
-
-type DefinitionOperation int
-
-type DefinitionEvent struct {
-	SourceAddress, Name, Definition string
-	Operation                       DefinitionOperation
+func (b Definition) String() string {
+	return fmt.Sprintf("definition: %s|%s : %s operation: %t ", b.SourceAddress, b.Name, b.Definition, b.Adding)
 }
 
 var (
@@ -52,16 +47,13 @@ var (
 	BD_SERVICE_PORT = regexp.MustCompile(`([[:digit:]]+)`)
 )
 
-func (b DefinitionEvent) IsValid() bool {
+// Check the definition against the validation regex
+func (b Definition) IsValid() bool {
 	return BD_DEFINITION.MatchString(b.Definition)
 }
 
-func (b DefinitionEvent) String() string {
-	return fmt.Sprintf("definition: %s|%s : %s operation: %d ", b.SourceAddress, b.Name, b.Definition, b.Operation)
-}
-
-/* /services/prod/redis/master/6379/*;PORT;OPTION=VALUE */
-func (b DefinitionEvent) GetService() (service services.Service, err error) {
+// Converting a service definition into a Service or error
+func (b Definition) GetService() (service services.Service, err error) {
 	if matched := b.IsValid(); matched {
 		sections := strings.Split(b.Definition, ";")
 		section_name := sections[0]

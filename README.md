@@ -19,7 +19,7 @@ Embassy presently supports the following providers to pull endpoints from. Note;
 
 >   - [Consul](https://consul.io)
 >   - [Etcd](https://github.com/coreos/etcd)
->   - [Marathon](http://mesosphere.com)
+>   - [Marathon](http://mesosphere.com) (> v0.7.6)
 
 #### **Service Providers**
 

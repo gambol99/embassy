@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	DEFAULT_PROXY_PORT 		= 9999
-	DEFAULT_INTERFACE  		= "eth0"
-	DEFAULT_DISCOVERY_URI  	= "consul://127.0.0.1:8500"
-	DEFAULT_SERVICE_PREFIX 	= "BACKEND_"
-	DEFAULT_FILTER_HEALTH   = true
+	DEFAULT_PROXY_PORT     = 9999
+	DEFAULT_INTERFACE      = "eth0"
+	DEFAULT_DISCOVERY_URI  = "consul://127.0.0.1:8500"
+	DEFAULT_SERVICE_PREFIX = "BACKEND_"
+	DEFAULT_FILTER_HEALTH  = true
+	DEFAULT_DOCKER_SOCKET  = "unix:///var/run/docker.sock"
 )
 
 var Options struct {
@@ -39,6 +40,12 @@ var Options struct {
 	Service_prefix string
 	/* whether or not to filter endpoints by the provider health checks */
 	Filter_On_Health bool
+	/* the docker socket */
+	Socket string
+	/* the services provider to use */
+	Provider string
+	/* the service options, used by the static provider */
+	Services string
 }
 
 func init() {
@@ -47,4 +54,7 @@ func init() {
 	flag.StringVar(&Options.Discovery_url, "discovery", DEFAULT_DISCOVERY_URI, "the discovery backend to pull the services from")
 	flag.StringVar(&Options.Service_prefix, "prefix", DEFAULT_SERVICE_PREFIX, "the prefix used to distinguish a backend service")
 	flag.BoolVar(&Options.Filter_On_Health, "filter", DEFAULT_FILTER_HEALTH, "whether or not to filter out endpoints not passing health checks")
+	flag.StringVar(&Options.Socket, "docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
+	flag.StringVar(&Options.Provider, "provider", "docker", "the services provider to use, either docker or static")
+	flag.StringVar(&Options.Services, "services", "", "a comma seperated list of services i.e frontend;80,mysql;3306 etc")
 }

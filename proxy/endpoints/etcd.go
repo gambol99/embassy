@@ -24,19 +24,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-etcd/etcd"
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
+
+	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
 )
 
 type EtcdClient struct {
-	/* the etcd http client */
-	client   *etcd.Client
-	/* the shutdown channel for the service */
+	// the etcd http client
+	client *etcd.Client
+	// the shutdown channel for the service
 	shutdown_channel utils.ShutdownSignalChannel
-	/* a kill switch */
-	kill_off  bool
+	// a kill switch
+	kill_off bool
 }
 
 var EtcdOptions struct {
@@ -60,9 +61,9 @@ func NewEtcdStore(uri string) (EndpointsProvider, error) {
 	if EtcdOptions.cert_file != "" {
 		/* step: create a tls connection */
 		client, err := etcd.NewTLSClient(GetEtcdHosts(uri), EtcdOptions.cert_file,
-			EtcdOptions.key_file, EtcdOptions.cacert_file )
+			EtcdOptions.key_file, EtcdOptions.cacert_file)
 		if err != nil {
-			glog.Errorf("Failed to create a TLS connection to etcd: %s, error: %s", uri, err )
+			glog.Errorf("Failed to create a TLS connection to etcd: %s, error: %s", uri, err)
 			return nil, err
 		}
 		service.client = client
@@ -81,16 +82,17 @@ func (r *EtcdClient) Close() {
 }
 
 func (e *EtcdClient) Watch(si *services.Service) (updates EndpointEventChannel, err error) {
-	/* channel to send back events to the endpoints store */
+	// channel to send back events to the endpoints store
 	endpointUpdateChannel := make(EndpointEventChannel, 5)
-	/* channel to receive events from the watcher */
+	// channel to receive events from the watcher
 	endpointWatchChannel := make(chan *etcd.Response)
-	/* channel to close the watcher */
+	// channel to close the watcher
 	stopChannel := make(chan bool)
+
 	go func() {
-		/* step: start watching the endpoints */
+		// step: start watching the endpoints
 		go e.WaitForChanges(si.Name, endpointWatchChannel, stopChannel)
-		/* step: we wait for events from the above */
+		// step: we wait for events from the above
 		for {
 			select {
 			case update := <-endpointWatchChannel:
@@ -105,8 +107,9 @@ func (e *EtcdClient) Watch(si *services.Service) (updates EndpointEventChannel, 
 					glog.Errorf("Unknown action recieved from etcd: %V", update)
 					continue
 				}
-				/* send the event upstream to endpoints store */
+				// send the event upstream to endpoints store
 				endpointUpdateChannel <- event
+
 			case <-e.shutdown_channel:
 				glog.Infof("Shutting down the watcher on service: %s", si)
 				stopChannel <- true
@@ -212,10 +215,9 @@ type EtcdServiceDocument struct {
 func NewEtcdDocument(data []byte) (*EtcdServiceDocument, error) {
 	document := &EtcdServiceDocument{}
 	if err := json.Unmarshal(data, &document); err != nil {
-		glog.Errorf("Unable to decode the service document: %s", document)
+		glog.Errorf("Unable to decode the service document: %s, error: %s", document, err)
 		return nil, err
 	}
-	/* step: check if the document is valid */
 	if err := document.IsValid(); err != nil {
 		return nil, err
 	}

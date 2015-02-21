@@ -19,12 +19,13 @@ package main
 import (
 	"flag"
 	"os"
+	"os/signal"
 	"runtime"
 	"syscall"
-	"os/signal"
 
 	"github.com/gambol99/embassy/proxy"
 	"github.com/gambol99/embassy/store"
+
 	"github.com/golang/glog"
 )
 
@@ -33,19 +34,18 @@ func main() {
 	/* step: set max processors */
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	glog.Infof("Starting the Embassy Docker Service Proxy, version: %s", Version)
+	glog.Infof("Starting %s Service Proxy (%s), version: %s", NAME, AUTHOR, VERSION)
 
 	/* step: create the services store */
 	if services, err := store.NewServiceStore(); err != nil {
-		glog.Errorf("Failed to create the service provider, error: %s", err)
-		os.Exit(1)
+		glog.Fatalf("Failed to create the service provider, error: %s", err)
 	} else {
 		/* step: create the proxy service */
 		if service, err := proxy.NewProxyService(services); err != nil {
 			glog.Fatalf("Failed to create the proxy service, error: %s", err)
 		} else {
 			go func() {
-				if err := service.Start(); err != nil {
+				if err := service.ProxyConnections(); err != nil {
 					glog.Fatalf("Failed to start the proxy service, error: %s", err)
 				}
 				os.Exit(1)
@@ -55,9 +55,7 @@ func main() {
 		/* step: setup the channel for shutdown signals */
 		signalChannel := make(chan os.Signal)
 		signal.Notify(signalChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
 		/* step: wait on the signal */
 		<-signalChannel
-		glog.Infof("Recieved a kill signal, exitting")
 	}
 }

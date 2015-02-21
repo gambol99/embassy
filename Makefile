@@ -8,7 +8,7 @@
 NAME=embassy
 AUTHOR=gambol99
 HARDWARE=$(shell uname -m)
-VERSION=$(shell awk '/const Version/ { print $$4 }' version.go | sed 's/"//g')
+VERSION=$(shell awk '/VERSION/ { print $$3 }' version.go | sed 's/"//g')
 REPOSITORY=embassy
 
 .PHONY: build docker release

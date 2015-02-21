@@ -16,20 +16,15 @@ limitations under the License.
 
 package services
 
-/*
-the channel is used by the service store to send service requests and removal
-from over to the proxy service
-*/
-type ServiceEventsChannel chan ServiceEvent
+//	The channel is used by the service store to send service requests and removal
+//	from over to the proxy service
+type ServicesChannel chan ServiceEvent
 
-/*
-the services store only has to implement the following
-*/
+// The interface into the services store, i.e. requests to bind services to endpoints.
+// This has been implemented in docker and static thus far
 type ServiceStore interface {
 	/* close the services store */
-	Close()
-	/* kick of listening to services */
-	Start() error
+	Close() error
 	/* add a event listener for service events */
-	AddServiceListener(ServiceEventsChannel)
+	StreamServices(channel ServicesChannel) error
 }
