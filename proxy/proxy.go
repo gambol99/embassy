@@ -90,7 +90,7 @@ func (px *ProxyStore) Start() error {
 
 	/* step: add ourselves us a listener to service events */
 	glog.V(5).Infof("Initializing the service discovery and starting to listen")
-	service_updates := make(services.ServiceEventsChannel, 5)
+	service_updates := make(services.ServiceEventsChannel, 100)
 	defer close(service_updates)
 
 	px.Store.AddServiceListener(service_updates)
