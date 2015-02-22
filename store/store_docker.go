@@ -184,10 +184,13 @@ func (r *DockerServiceStore) ProcessDockerDestroy(containerID string, channel Ba
 }
 
 func (r *DockerServiceStore) PushServices(channel BackendServiceChannel, definitions []DefinitionEvent, operation DefinitionOperation) {
-	for _, definition := range definitions {
-		definition.Operation = operation
-		channel <- definition
-	}
+	// Do NOT block us
+	go func() {
+		for _, definition := range definitions {
+			definition.Operation = operation
+			channel <- definition
+		}
+	}()
 }
 
 func (r *DockerServiceStore) GetContainer(containerID string) (container *docker.Container, err error) {

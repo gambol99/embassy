@@ -179,7 +179,7 @@ func (px *ProxyStore) ProxyConnections() error {
 					connection.Close()
 				}
 
-				glog.V(5).Infof("Accepted TCP connection from %v to %v, original port: %s",
+				glog.V(8).Infof("Accepted TCP connection from %v to %v, original port: %s",
 					connection.RemoteAddr(), connection.LocalAddr(), original_port)
 
 				/* step: create a proxyId for this */

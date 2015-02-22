@@ -78,7 +78,7 @@ func NewServiceStore() (ServiceStore, error) {
 	/* step: create the services store */
 	service := &ServiceStoreImpl{
 		// channel to pass to providers
-		make(BackendServiceChannel, 100),
+		make(BackendServiceChannel, 20),
 		// a map of providers
 		make(map[string]ServiceProvider, 0),
 		// a list of people listening for service updates

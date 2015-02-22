@@ -159,9 +159,6 @@ func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
 			return nil, err
 		}
 
-		/* step: we use x timeouts to connect to backend */
-		glog.V(4).Infof("Proxying service %s to endpoint %s", r.Service, endpoint)
-
 		/* step: attempt to connect to the backend */
 		outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout*time.Second)
 		if err != nil {
@@ -176,11 +173,11 @@ func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
 
 func TransferTCPBytes(direction string, dest, src *net.TCPConn, waitgroup *sync.WaitGroup) {
 	defer waitgroup.Done()
-	glog.V(4).Infof("Copying %s: %s -> %s", direction, src.RemoteAddr(), dest.RemoteAddr())
+	glog.V(7).Infof("Copying %s: %s -> %s", direction, src.RemoteAddr(), dest.RemoteAddr())
 	if n, err := io.Copy(dest, src); err != nil {
 		glog.Errorf("I/O error: %v", err)
 	} else {
-		glog.V(4).Infof("Copied %d bytes %s: %s -> %s", n, direction, src.RemoteAddr(), dest.RemoteAddr())
+		glog.V(7).Infof("Copied %d bytes %s: %s -> %s", n, direction, src.RemoteAddr(), dest.RemoteAddr())
 	}
 	dest.CloseWrite()
 	src.CloseRead()
