@@ -150,9 +150,13 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 				/* step: we iterate the tasks and check if ANY of the health checks has failed */
 				passed_health := true
 				for _, check := range task.HealthCheckResult {
-					if check.Alive == false {
-						glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed", service, task.Host, service.Port)
+					if check == nil {
 						passed_health = false
+					} else {
+						if check.Alive == false {
+							glog.V(4).Infof("Service: %s, endpoint: %s:%d health check not passed", service, task.Host, service.Port)
+							passed_health = false
+						}
 					}
 				}
 				/* step: did it pass all the health checks? */
