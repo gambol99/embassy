@@ -19,8 +19,8 @@ package endpoints
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -32,20 +32,19 @@ import (
 	"github.com/golang/glog"
 )
 
-
 const (
 	DEFAULT_MARATHON_PORT     = 10001
 	DEFAULT_EVENTS_URL        = "/"
 	MARATHON_API_VERSION      = "v2"
 	MARATHON_API_SUBSCRIPTION = MARATHON_API_VERSION + "/eventSubscriptions"
-	MARATHON_API_APPS  	      = MARATHON_API_VERSION + "/apps"
+	MARATHON_API_APPS         = MARATHON_API_VERSION + "/apps"
 	MARATHON_API_TASKS        = MARATHON_API_VERSION + "/tasks"
 )
 
 var MarathonEndpointOptions struct {
 	/* marathon event is provided a http callback method */
 	events_port int
-	}
+}
 
 func init() {
 	flag.IntVar(&MarathonEndpointOptions.events_port, "marathon-port", DEFAULT_MARATHON_PORT, "marathon event callback http port")
@@ -62,9 +61,9 @@ type Marathon interface {
 	/* watch for changes on a application */
 	Watch(application_id string, channel chan bool)
 	/* remove me from watching this service */
-	Remove(application_id string, channel chan bool)
+	Remove(application_id string)
 	/* get a list of applications from marathon */
-	Applications() (Applications,error)
+	Applications() (Applications, error)
 	/* get a specific application */
 	Application(id string) (Application, error)
 	/* get a list of tasks for a specific application */
@@ -74,7 +73,7 @@ type Marathon interface {
 	/* get the marathon url */
 	GetMarathonURL() string
 	/* get the call back url */
-    GetCallbackURL() string
+	GetCallbackURL() string
 }
 
 type MarathonEndpoint struct {
@@ -111,12 +110,12 @@ func NewMarathonEndpoint() (Marathon, error) {
 
 	/* step: create the service */
 	service := new(MarathonEndpoint)
-	service.services = make(map[string]chan bool,0)
-	service.marathon_url = fmt.Sprintf("http://%s", strings.TrimPrefix(config.Options.Discovery_url, "marathon://") )
+	service.services = make(map[string]chan bool, 0)
+	service.marathon_url = fmt.Sprintf("http://%s", strings.TrimPrefix(config.Options.Discovery_url, "marathon://"))
 
 	/* step: register with marathon service as a callback for events */
 	service.service_interface = fmt.Sprintf("%s:%d", ip_address, MarathonEndpointOptions.events_port)
-	service.callback_url 	  = fmt.Sprintf("http://%s%s", service.service_interface, DEFAULT_EVENTS_URL)
+	service.callback_url = fmt.Sprintf("http://%s%s", service.service_interface, DEFAULT_EVENTS_URL)
 
 	if err := service.RegisterCallback(); err != nil {
 		glog.Errorf("Failed to register as a callback to Marathon events, error: %s", err)
@@ -140,10 +139,6 @@ func (r *MarathonEndpoint) GetCallbackURL() string {
 	return r.callback_url
 }
 
-func (r *MarathonEndpoint) GetServiceKey(service_name string, service_port int) string {
-	return fmt.Sprintf("%s:%d", service_name, service_port)
-}
-
 func (r *MarathonEndpoint) RegisterCallback() error {
 	glog.Infof("Registering as a events callback with Marathon: %s, callback: %s", r.marathon_url, r.callback_url)
 	registration := fmt.Sprintf("%s/%s?callbackUrl=%s", r.marathon_url, MARATHON_API_SUBSCRIPTION, r.callback_url)
@@ -154,7 +149,7 @@ func (r *MarathonEndpoint) RegisterCallback() error {
 	max_attempts := 3
 	for {
 		if response, err := http.Post(registration, "application/json", nil); err != nil {
-			glog.Errorf("Failed to post Marathon registration for callback service, error: %s", err )
+			glog.Errorf("Failed to post Marathon registration for callback service, error: %s", err)
 		} else {
 			if response.StatusCode < 200 || response.StatusCode >= 300 {
 				glog.Errorf("Failed to register with the Marathon event callback service, error: %s", response.Body)
@@ -188,13 +183,13 @@ func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, reque
 	var event MarathonEvent
 	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&event); err != nil {
-		glog.Errorf("Failed to decode the Marathon event: %s, error: %s", request.Body, err )
+		glog.Errorf("Failed to decode the Marathon event: %s, error: %s", request.Body, err)
 	} else {
 		switch event.EventType {
 		case "health_status_changed_event":
-			glog.V(4).Infof("Marathon application: %s health status has been altered, resyncing", event.AppID)
+			glog.V(5).Infof("Marathon application: %s health status has been altered", event.AppID)
 		case "status_update_event":
-			glog.V(4).Infof("Marathon application: %s status update, resyncing endpoints", event.AppID)
+			glog.V(5).Infof("Marathon application: %s status update", event.AppID)
 		default:
 			glog.V(10).Infof("Skipping the Marathon event, as it's not a status update, type: %s", event.EventType)
 			return
@@ -202,6 +197,7 @@ func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, reque
 		/* step: we notify the receiver */
 		for service, listener := range r.services {
 			if strings.HasPrefix(service, event.AppID) {
+				glog.V(5).Infof("Marathon application: %s status updated, resyning now", event.AppID)
 				go func() {
 					listener <- true
 				}()
@@ -217,7 +213,7 @@ func (r MarathonEndpoint) Watch(service_name string, channel chan bool) {
 	r.services[service_name] = channel
 }
 
-func (r MarathonEndpoint) Remove(service_name string, channel chan bool) {
+func (r MarathonEndpoint) Remove(service_name string) {
 	r.Lock()
 	defer r.Unlock()
 	glog.V(10).Infof("Deleting the watch for Marathon application: %s", service_name)
@@ -271,7 +267,7 @@ func (r *MarathonEndpoint) AllTasks() (tasks Tasks, err error) {
 
 func (r *MarathonEndpoint) Tasks(application_id string) (tasks Tasks, err error) {
 	var response string
-	if response, err = r.Get(fmt.Sprintf("%s%s/tasks", MARATHON_API_APPS, application_id ) ); err != nil {
+	if response, err = r.Get(fmt.Sprintf("%s%s/tasks", MARATHON_API_APPS, application_id)); err != nil {
 		glog.Errorf("Failed to retrieve a list of application tasks in Marathon, error: %s", err)
 		return
 	} else {
@@ -286,7 +282,7 @@ func (r *MarathonEndpoint) Tasks(application_id string) (tasks Tasks, err error)
 
 func (r *MarathonEndpoint) Get(uri string) (string, error) {
 	url := fmt.Sprintf("%s/%s", r.marathon_url, uri)
-	glog.V(5).Infof("Get() url: %s", url )
+	glog.V(5).Infof("Get() url: %s", url)
 	if response, err := http.Get(url); err != nil {
 		return "", err
 	} else {
@@ -311,28 +307,28 @@ func (r *MarathonEndpoint) Get(uri string) (string, error) {
     ---------------------------------- */
 
 type Applications struct {
-	Apps            []Application     `json:"apps"`
+	Apps []Application `json:"apps"`
 }
 
 type Application struct {
-	ID              string            `json:"id"`
-	Cmd             string            `json:"cmd,omitempty"`
-	Constraints     [][]string        `json:"constraints,omitempty"`
-	Container       *Container        `json:"container,omitempty"`
-	CPUs            float32           `json:"cpus,omitempty"`
-	Env             map[string]string `json:"env,omitempty"`
-	Executor        string            `json:"executor,omitempty"`
-	HealthChecks    []*HealthCheck    `json:"healthChecks,omitempty"`
-	Instances       int               `json:"instances,omitemptys"`
-	Mem             float32           `json:"mem,omitempty"`
-	Tasks           []*Task           `json:"tasks,omitempty"`
-	Ports           []int             `json:"ports,omitempty"`
-	RequirePorts    bool              `json:"requirePorts,omitempty"`
-	BackoffFactor   float32           `json:"backoffFactor,omitempty"`
-	TasksRunning    int               `json:"tasksRunning,omitempty"`
-	TasksStaged     int               `json:"tasksStaged,omitempty"`
-	Uris            []string          `json:"uris,omitempty"`
-	Version         string            `json:"version,omitempty"`
+	ID            string            `json:"id"`
+	Cmd           string            `json:"cmd,omitempty"`
+	Constraints   [][]string        `json:"constraints,omitempty"`
+	Container     *Container        `json:"container,omitempty"`
+	CPUs          float32           `json:"cpus,omitempty"`
+	Env           map[string]string `json:"env,omitempty"`
+	Executor      string            `json:"executor,omitempty"`
+	HealthChecks  []*HealthCheck    `json:"healthChecks,omitempty"`
+	Instances     int               `json:"instances,omitemptys"`
+	Mem           float32           `json:"mem,omitempty"`
+	Tasks         []*Task           `json:"tasks,omitempty"`
+	Ports         []int             `json:"ports,omitempty"`
+	RequirePorts  bool              `json:"requirePorts,omitempty"`
+	BackoffFactor float32           `json:"backoffFactor,omitempty"`
+	TasksRunning  int               `json:"tasksRunning,omitempty"`
+	TasksStaged   int               `json:"tasksStaged,omitempty"`
+	Uris          []string          `json:"uris,omitempty"`
+	Version       string            `json:"version,omitempty"`
 }
 
 type MarathonEvent struct {
@@ -353,16 +349,16 @@ type MarathonStatusUpdate struct {
 }
 
 type MarathonHealthCheckChanged struct {
-	EventType  string `json:"eventType"`
-	Timestamp  string `json:"timestamp,omitempty"`
-	AppID      string `json:"appId"`
-	TaskID     string `json:"taskId"`
-	Version    string `json:"version,omitempty"`
-	Alive  	   bool   `json:"alive"`
+	EventType string `json:"eventType"`
+	Timestamp string `json:"timestamp,omitempty"`
+	AppID     string `json:"appId"`
+	TaskID    string `json:"taskId"`
+	Version   string `json:"version,omitempty"`
+	Alive     bool   `json:"alive"`
 }
 
 type MarathonApplication struct {
-	Application Application	 `json:"app"`
+	Application Application `json:"app"`
 }
 
 type Container struct {
@@ -395,15 +391,15 @@ type Tasks struct {
 }
 
 type Task struct {
-	AppID     			string 				  `json:"appId"`
-	Host      			string 				  `json:"host"`
-	ID        			string 			      `json:"id"`
-	HealthCheckResult   []*HealthCheckResult  `json:"healthCheckResults"`
-	Ports     			[]int  				  `json:"ports"`
-	ServicePorts    	[]int  				  `json:"servicePorts"`
-	StagedAt  			string 				  `json:"stagedAt"`
-	StartedAt 			string 				  `json:"startedAt"`
-	Version   			string 				  `json:"version"`
+	AppID             string               `json:"appId"`
+	Host              string               `json:"host"`
+	ID                string               `json:"id"`
+	HealthCheckResult []*HealthCheckResult `json:"healthCheckResults"`
+	Ports             []int                `json:"ports"`
+	ServicePorts      []int                `json:"servicePorts"`
+	StagedAt          string               `json:"stagedAt"`
+	StartedAt         string               `json:"startedAt"`
+	Version           string               `json:"version"`
 }
 
 type HealthCheck struct {
@@ -416,10 +412,10 @@ type HealthCheck struct {
 }
 
 type HealthCheckResult struct {
- 	Alive  				bool   `json:"alive"`
+	Alive               bool   `json:"alive"`
 	ConsecutiveFailures int    `json:"consecutiveFailures"`
-	FirstSuccess		string `json:"firstSuccess"`
-	LastFailure			string `json:"lastFailure"`
-	LastSuccess			string `json:"lastSuccess"`
-	TaskID				string `json:"taskId"`
+	FirstSuccess        string `json:"firstSuccess"`
+	LastFailure         string `json:"lastFailure"`
+	LastSuccess         string `json:"lastSuccess"`
+	TaskID              string `json:"taskId"`
 }

@@ -21,36 +21,33 @@ import (
 	"net/url"
 	"time"
 
-	consulapi "github.com/armon/consul-api"
-	"github.com/gambol99/embassy/proxy/services"
-	"github.com/golang/glog"
 	"github.com/gambol99/embassy/config"
+	"github.com/gambol99/embassy/proxy/services"
+
+	consulapi "github.com/armon/consul-api"
+	"github.com/golang/glog"
 )
 
 type ConsulClient struct {
-	/* the consul api client */
+	// the consul api client
 	client *consulapi.Client
-	/* the current wait index */
+	// the current wait index
 	wait_index uint64
-	/* the kill off */
+	// the kill off
 	kill_off bool
 }
 
-const (
-	DEFAULT_WAIT_TIME = 10 * time.Second
-)
+const DEFAULT_WAIT_TIME = 10 * time.Second
 
 func NewConsulClient(discovery string) (EndpointsProvider, error) {
-	config := consulapi.DefaultConfig()
+	cfg := consulapi.DefaultConfig()
 	uri, err := url.Parse(discovery)
 	if err != nil {
 		glog.Errorf("Failed to parse the discovery url, error: %s", err)
 		return nil, err
 	}
-	if uri.Host != "" {
-		config.Address = uri.Host
-	}
-	client, err := consulapi.NewClient(config)
+	cfg.Address = uri.Host
+	client, err := consulapi.NewClient(cfg)
 	return &ConsulClient{client, uint64(0), false}, nil
 }
 
@@ -89,24 +86,25 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 			/* step: making a blocking watch call for changes on the service */
 			_, meta, err := catalog.Service(si.Name, "", queryOptions)
 			if err != nil {
-				glog.Errorf("Failed to wait for service to change, error: %s", err)
+				glog.V(5).Infof("Failed to wait for service to change, error: %s", err)
 				r.wait_index = 0
 				time.Sleep(5 * time.Second)
 			} else {
 				if r.kill_off {
 					continue
 				}
-				/* step: if the wait and last index are the same, we can continue */
+				// step: if the wait and last index are the same, we can continue
 				if r.wait_index == meta.LastIndex {
 					continue
 				}
-				/* step: update the index */
+				// step: update the index
 				r.wait_index = meta.LastIndex
 
-				/* step: construct the change event and send */
-				var event EndpointEvent
-				event.ID = si.Name
-				event.Action = ENDPOINT_CHANGED
+				// step: construct the change event and send
+				event := EndpointEvent{
+					ID:     si.Name,
+					Action: ENDPOINT_CHANGED,
+				}
 				endpointUpdateChannel <- event
 			}
 		}
@@ -118,22 +116,23 @@ func (r *ConsulClient) Watch(si *services.Service) (EndpointEventChannel, error)
 func (r *ConsulClient) List(si *services.Service) ([]Endpoint, error) {
 	glog.V(5).Infof("Retrieving a list of the endpoints for service: %s", si)
 	health_checks_required := config.Options.Filter_On_Health
-	/* step: query for the service, along with health checks */
-	if services, _, err := r.client.Health().Service(si.Name, "", health_checks_required, &consulapi.QueryOptions{}); err != nil {
-		glog.Errorf("Failed to retrieve a list of services for service: %s", si)
+
+	// step: query for the service, along with health checks
+	services, _, err := r.client.Health().Service(si.Name, "", health_checks_required, &consulapi.QueryOptions{})
+	if err != nil {
+		glog.Errorf("Failed to retrieve a list of services for service: %s, error: %s", si, err)
 		return nil, err
-	} else {
-		list := make([]Endpoint, 0)
-		/* step: iterate the CatalogService and pull the endpoints */
-		for _, service := range services {
-			service_address := service.Node.Address
-			service_port := service.Service.Port
-			endpoint := Endpoint(fmt.Sprintf("%s:%d", service_address, service_port))
-			list = append(list, endpoint)
-		}
-		glog.V(8).Infof("Retrieved the list of endpoints for service: %s, endpoint: %s", si.Name, list)
-		return list, nil
 	}
+
+	list := make([]Endpoint, 0)
+	for _, service := range services {
+		service_address := service.Node.Address
+		service_port := service.Service.Port
+		endpoint := Endpoint(fmt.Sprintf("%s:%d", service_address, service_port))
+		list = append(list, endpoint)
+	}
+	glog.V(8).Infof("Retrieved the list of endpoints for service: %s, endpoint: %s", si.Name, list)
+	return list, nil
 }
 
 func (r *ConsulClient) Close() {

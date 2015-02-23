@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+	"time"
+	"math/rand"
 )
 
 const (
@@ -31,6 +33,7 @@ const (
 )
 
 type ShutdownSignalChannel chan bool
+type ErrorSignalChannel chan error
 
 func GetLocalIPAddress(interface_name string) (string, error) {
 	glog.V(5).Infof("Attempting to grab the ipaddress of interface: %s", interface_name)
@@ -84,4 +87,17 @@ func GetHostname() (string, error) {
 		return "", err
 	}
 	return hostname, nil
+}
+
+func RandomInt(min, max int) int {
+	rand.Seed(time.Now().Unix())
+	return rand.Intn(max - min) + min
+}
+
+func Forever(method func()) {
+	go func() {
+		for {
+			method()
+		}
+	}()
 }

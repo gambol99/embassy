@@ -66,7 +66,7 @@ func NewMarathonClient(uri string) (EndpointsProvider, error) {
 	})
 	/* step: extract the marathon url */
 	service := new(MarathonClient)
-	service.update_channel   = make(chan bool, 5)
+	service.update_channel = make(chan bool, 5)
 	service.shutdown_channel = make(chan bool)
 	return service, nil
 }
@@ -88,7 +88,7 @@ func (r *MarathonClient) List(service *services.Service) ([]Endpoint, error) {
 		/* step: does the application have any active tasks ? */
 		if len(application.Tasks) <= 0 {
 			glog.V(3).Infof("The Marathon application: %s doesn't have any endpoints", application.ID)
-			return make([]Endpoint,0), nil
+			return make([]Endpoint, 0), nil
 		}
 
 		/* step: iterate the tasks and build the endpoints */
@@ -133,7 +133,7 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 	}
 
 	/* step: we iterate the tasks and extract the ports */
-	endpoints := make([]Endpoint,0)
+	endpoints := make([]Endpoint, 0)
 	if application.Tasks != nil {
 		for _, task := range application.Tasks {
 			/* check: are we filtering on health checks? */
@@ -150,6 +150,8 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 				/* step: we iterate the tasks and check if ANY of the health checks has failed */
 				passed_health := true
 				for _, check := range task.HealthCheckResult {
+					// Some times the health check size > 0 but the value is null - probably an issue in the
+					// json decoding??
 					if check == nil {
 						passed_health = false
 					} else {
@@ -168,7 +170,7 @@ func (r *MarathonClient) GetEndpointsFromApplication(application Application, se
 			endpoints = append(endpoints, Endpoint(fmt.Sprintf("%s:%d", task.Host, task.Ports[port_index])))
 		}
 	}
-	glog.V(3).Infof("Found %d endpoints in application: %s, service port: %d, endpoints: %v",
+	glog.V(10).Infof("Found %d endpoints in application: %s, service port: %d, endpoints: %v",
 		len(endpoints), application.ID, service.Port, endpoints)
 	return endpoints, nil
 }
@@ -188,7 +190,7 @@ func (r *MarathonClient) GetServicePortFromApplication(service *services.Service
 
 func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel, error) {
 	/* channel to send back events to the endpoints store */
-	endpointUpdateChannel := make(EndpointEventChannel, 20)
+	endpointUpdateChannel := make(EndpointEventChannel, 5)
 	/*
 		step: validate the service definition, due to the internal representation of applications in
 		marathon, the service port *MUST* is specified in the service definition i.e. BACKEND_FE=/prod/frontend/80;80
@@ -204,10 +206,11 @@ func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel,
 		go func() {
 			for {
 				select {
-				case <- r.update_channel:
-					endpointUpdateChannel <- EndpointEvent{string(service.ID),ENDPOINT_CHANGED,*service}
-				case <- r.shutdown_channel:
-					marathon.Remove(name, r.update_channel)
+				case <-r.update_channel:
+					endpointUpdateChannel <- EndpointEvent{string(service.ID), ENDPOINT_CHANGED, *service}
+				case <-r.shutdown_channel:
+					glog.V(4).Infof("Shutting down the Marathon againt for service: %s", name)
+					marathon.Remove(name)
 				}
 			}
 		}()
@@ -216,6 +219,7 @@ func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel,
 }
 
 func (r *MarathonClient) Close() {
+
 	/* step: we need to remove our self from listening to the event from the marathon endpoint service */
 	r.shutdown_channel <- true
 }

@@ -23,22 +23,15 @@ import (
 	"github.com/golang/glog"
 )
 
-const (
-	DEFAULT_BALANCER = "rr"
-)
-
 type LoadBalancer interface {
-	/* select a endpoint for this service */
+	// select a endpoint for this service
 	SelectEndpoint(endpoints []endpoints.Endpoint) (endpoints.Endpoint, error)
-	/* update the endpoints */
+	// update the endpoints
 	UpdateEndpoints(endpoints []endpoints.Endpoint)
 }
 
 func NewLoadBalancer(name string) (LoadBalancer, error) {
 	glog.V(5).Infof("Creating new load balancer: %s", name)
-	if name == "" {
-		name = DEFAULT_BALANCER
-	}
 	lb := map[string]LoadBalancer{
 		"rr": NewLoadBalancerRR(),
 	}[name]

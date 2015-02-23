@@ -18,11 +18,13 @@ package endpoints
 
 import (
 	"errors"
-	"unsafe"
 	"sync/atomic"
+	"time"
+	"unsafe"
 
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
+
 	"github.com/golang/glog"
 )
 
@@ -47,35 +49,92 @@ type EndpointsStore interface {
 
 type EndpointsStoreService struct {
 	/* the service agent is running for */
-	Service services.Service
-	/* the backend provider - etcd | consul | something else */
-	Provider EndpointsProvider
+	service services.Service
+	/* the backend provider - etcd | consul | marathon */
+	provider EndpointsProvider
 	/* the current list of endpoints for this service */
-	Endpoints unsafe.Pointer
+	endpoints unsafe.Pointer
 	/* channel for listeners on endpoints */
-	Listeners []EndpointEventChannel
+	listeners []EndpointEventChannel
 	/* channel for shutdown signal */
-	Shutdown utils.ShutdownSignalChannel
+	shutdown utils.ShutdownSignalChannel
 }
 
 func (r *EndpointsStoreService) AddEventListener(channel EndpointEventChannel) {
-	glog.V(5).Infof("Adding listener for endpoint events, channel: %V", channel)
-	r.Listeners = append(r.Listeners, channel)
+	glog.V(8).Infof("Adding listener for endpoint events, channel: %V", channel)
+	r.listeners = append(r.listeners, channel)
 }
 
-func (ds *EndpointsStoreService) ListEndpoints() ([]Endpoint,error) {
-	/* step: pull a list of paths from the backend */
-	return *(*[]Endpoint)(atomic.LoadPointer(&ds.Endpoints)), nil
+func (ds *EndpointsStoreService) ListEndpoints() ([]Endpoint, error) {
+	return *(*[]Endpoint)(atomic.LoadPointer(&ds.endpoints)), nil
 }
 
-func (ds *EndpointsStoreService) PushEventToListeners(event EndpointEvent) {
-	glog.V(5).Infof("Pushing the event: %s to all listeners", event)
+func (ds EndpointsStoreService) Close() {
+	glog.Infof("Shutting down the endpoints store for service: %s", ds.service)
+	ds.shutdown <- true
+}
+
+func (ds *EndpointsStoreService) Synchronize() error {
+	glog.V(5).Infof("Synchronize the endpoints for service: %s", ds.service)
+	endpoints, err := ds.provider.List(&ds.service)
+	if err != nil {
+		glog.Errorf("Attempt to resynchronize the endpoints failed for service: %s, error: %s", ds.service, err)
+		return errors.New("Failed to resync the endpoints")
+	}
+	glog.V(3).Infof("Service: %s, endpoints: %s", ds.service, endpoints)
+	/* step: we register any new endpoints - using the endpoint id as key into the map */
+	atomic.StorePointer(&ds.endpoints, unsafe.Pointer(&endpoints))
+	return nil
+}
+
+/* Go-routine listens to events from the store provider and passes them up the chain to listened (namely the proxy */
+func (ds *EndpointsStoreService) WatchEndpoints() {
+	glog.V(3).Infof("Watching for changes on service: %s", ds.service)
+	go func() {
+		glog.V(3).Infof("Starting to watch endpoints for service: %s, path: %s", ds.service, ds.service.Name)
+		watchChannel, err := ds.provider.Watch(&ds.service)
+		if err != nil {
+			glog.Errorf("Unable to start the watcher for service: %s, error: %s", ds.service, err)
+			return
+		}
+
+		// A timer for debugging purposes, dump the endpoints
+		timer  := time.NewTicker(10 * time.Second)
+		resync := time.NewTicker(60 * time.Second)
+
+		// step: we simply wait for updates from the watcher or an kill switch
+		for {
+			select {
+			// We've received a change in the endpoints, lets resync
+			case update := <-watchChannel:
+				ds.Synchronize()
+				ds.Upstream(update)
+
+			case <-resync.C:
+				ds.Synchronize()
+
+			// Dump the endpoints for debugging purposes
+			case <-timer.C:
+				endpoints, _ := ds.ListEndpoints()
+				glog.V(4).Infof("services: %s, endpoints: %s", ds.service, endpoints)
+
+			// Shutdown the watcher
+			case <-ds.shutdown:
+				ds.provider.Close()
+				return
+			}
+		}
+	}()
+}
+
+func (ds *EndpointsStoreService) Upstream(event EndpointEvent) {
+	glog.V(8).Infof("Pushing the event: %s to all listeners", event)
 
 	/* create the event for us and wrap the service */
-	event.Service = ds.Service
+	event.Service = ds.service
 
 	/* step: send the event to all the listeners */
-	for _, listener := range ds.Listeners {
+	for _, listener := range ds.listeners {
 		/* step: we run this in a go-routine not to block */
 		go func() {
 			glog.V(12).Infof("Pushing the event: %s to listener: %v", event, listener)
@@ -84,52 +143,3 @@ func (ds *EndpointsStoreService) PushEventToListeners(event EndpointEvent) {
 	}
 }
 
-func (ds EndpointsStoreService) Close() {
-	glog.Infof("Shutting down the endpoints store for service: %s", ds.Service)
-	ds.Shutdown <- true
-}
-
-func (ds *EndpointsStoreService) Synchronize() error {
-	glog.V(3).Infof("Synchronize the endpoints for service: %s", ds.Service)
-	endpoints, err := ds.Provider.List(&ds.Service)
-	if err != nil {
-		glog.Errorf("Attempt to resynchronize the endpoints failed for service: %s, error: %s", ds.Service, err)
-		return errors.New("Failed to resync the endpoints")
-	}
-	glog.V(3).Infof("Service: %s, endpoints: %s", ds.Service, endpoints)
-	/* step: we register any new endpoints - using the endpoint id as key into the map */
-	atomic.StorePointer(&ds.Endpoints,unsafe.Pointer(&endpoints))
-	return nil
-}
-
-/* Go-routine listens to events from the store provider and passes them up the chain to listened (namely the proxy */
-func (ds *EndpointsStoreService) WatchEndpoints() {
-	glog.V(3).Infof("Watching for changes on service: %s", ds.Service)
-	go func() {
-		/* Never say die ! unless they tell us to */
-		for {
-			glog.V(4).Infof("Starting to watch endpoints for service: %s, path: %s", ds.Service, ds.Service.Name)
-			watchChannel, err := ds.Provider.Watch(&ds.Service)
-			if err != nil {
-				glog.Errorf("Unable to start the watcher for service: %s, error: %s", ds.Service, err)
-				return
-			}
-			/* step: we simply wait for updates from the watcher or an kill switch */
-			for {
-				select {
-				case update := <-watchChannel:
-					glog.V(4).Infof("Endpoints has changed for service: %s, updating the endpoints", ds.Service)
-					/* step: update our endpoints */
-					ds.Synchronize()
-					/* step: push the event to the listeners */
-					ds.PushEventToListeners(update)
-				case <-ds.Shutdown:
-					glog.Infof("Shutting down the provider for service: %s", ds.Service)
-					/* step: push downstream the kill signal to provider */
-					ds.Provider.Close()
-					return
-				}
-			}
-		}
-	}()
-}

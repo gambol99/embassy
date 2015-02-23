@@ -19,18 +19,19 @@ package endpoints
 import (
 	"errors"
 	"net/url"
+	"sync/atomic"
+	"unsafe"
 
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
+
 	"github.com/golang/glog"
-	"unsafe"
-	"sync/atomic"
 )
 
 const (
-	DISCOVERY_ETCD 		= "etcd"
-	DISCOVERY_CONSUL	= "consul"
-	DISCOVERY_MARATHON  = "marathon"
+	DISCOVERY_ETCD     = "etcd"
+	DISCOVERY_CONSUL   = "consul"
+	DISCOVERY_MARATHON = "marathon"
 )
 
 func NewEndpointsService(discovery string, si services.Service) (EndpointsStore, error) {
@@ -38,12 +39,12 @@ func NewEndpointsService(discovery string, si services.Service) (EndpointsStore,
 	glog.V(4).Infof("Initializing endpoints store for service: %s", si)
 	// step: check if the store provider is supported
 	endpoints := new(EndpointsStoreService)
-	endpoints.Service = si
+	endpoints.service = si
 	// Set to empty
 	empty := make([]Endpoint, 0)
-	atomic.StorePointer(&endpoints.Endpoints,unsafe.Pointer(&empty))
-	endpoints.Listeners = make([]EndpointEventChannel, 0)
-	endpoints.Shutdown = make(utils.ShutdownSignalChannel)
+	atomic.StorePointer(&endpoints.endpoints,unsafe.Pointer(&empty))
+	endpoints.listeners = make([]EndpointEventChannel, 0)
+	endpoints.shutdown = make(utils.ShutdownSignalChannel)
 
 	/* step: create the backend provider */
 
@@ -70,6 +71,6 @@ func NewEndpointsService(discovery string, si services.Service) (EndpointsStore,
 		return nil, err
 	}
 	glog.V(5).Infof("Succesfully initialize the endpoints %s", discovery)
-	endpoints.Provider = provider
+	endpoints.provider = provider
 	return endpoints, nil
 }

@@ -29,64 +29,63 @@ import (
 	"github.com/gambol99/embassy/proxy/loadbalancer"
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
+
 	"github.com/golang/glog"
 )
 
 var endpointDialTimeout = []time.Duration{2, 4, 8}
 
 type ServiceProxy interface {
-	/* close all the assets associated to this service */
+	// close all the assets associated to this service
 	Close()
-	/* handle a inbound connection */
-	HandleTCPConnection(*net.TCPConn) error
-	/* retrieve the service associated */
+	// handle a inbound connection
+	HandleTCPConnection(incoming *ProxyConnection) error
+	// retrieve the service associated
 	GetService() services.Service
 }
 
 type Proxier struct {
-	/* the service the proxy is proxying for */
+	// the service the proxy is proxying for
 	Service services.Service
-	/* the discovery agent for this service */
+	// the discovery agent for this service
 	Endpoints endpoints.EndpointsStore
-	/* the load balancer for this service */
+	// the load balancer for this service
 	Balancer loadbalancer.LoadBalancer
-	/* the shutdown signal */
+	// the shutdown signal
 	Shutdown utils.ShutdownSignalChannel
 }
 
 func NewServiceProxy(service services.Service) (ServiceProxy, error) {
 	glog.Infof("Initializing a new service proxy for service: %s, discovery: %s", service, config.Options.Discovery_url)
+	var err error
 
-	/* step: creating the service proxy */
+	// step: creating the service proxy
 	proxy := new(Proxier)
 	proxy.Service = service
 	proxy.Shutdown = make(utils.ShutdownSignalChannel)
-	if balancer, err := loadbalancer.NewLoadBalancer("rr"); err != nil {
+	proxy.Balancer, err = loadbalancer.NewLoadBalancer("rr")
+	if err != nil {
 		glog.Errorf("Failed to create load balancer for proxier, service: %s, error: %s", service, err)
 		return nil, err
-	} else {
-		proxy.Balancer = balancer
 	}
 
-	/* step: create a endpoints store for this service */
-	if endpoints, err := endpoints.NewEndpointsService(config.Options.Discovery_url, service); err != nil {
+	// step: create a endpoints store for this service */
+	proxy.Endpoints, err = endpoints.NewEndpointsService(config.Options.Discovery_url, service)
+	if err != nil {
 		glog.Errorf("Failed to create discovery agent on proxier, service: %s, error: %s", service, err)
 		return nil, err
-	} else {
-		proxy.Endpoints = endpoints
-		/* step: we can synchronize the endpoints in the backend */
-		go proxy.Endpoints.Synchronize()
-		/* step: start the discovery agent watcher */
-		proxy.Endpoints.WatchEndpoints()
 	}
-
-	/* step: handle the events */
+	// step: we can synchronize the endpoints in the backend
+	go proxy.Endpoints.Synchronize()
+	// step: start the discovery agent watcher
+	proxy.Endpoints.WatchEndpoints()
+	// step: handle the events
 	proxy.ProcessEvents()
 	return proxy, nil
 }
 
 func (px Proxier) String() string {
-	return fmt.Sprintf("service: %s", px.Service)
+	return fmt.Sprintf("proxy service: %s", px.Service)
 }
 
 func (r *Proxier) Close() {
@@ -123,48 +122,49 @@ func (r *Proxier) ProcessEvents() {
 	}()
 }
 
-func (r *Proxier) HandleTCPConnection(inConn *net.TCPConn) error {
-	/* step: we try and connect to a backend */
-	if outConn, err := r.TryConnect(); err != nil {
-		glog.Errorf("Failed to connect to balancer: %v", err)
-		inConn.Close()
+func (r *Proxier) HandleTCPConnection(incoming *ProxyConnection) error {
+	defer incoming.Connection.Close()
+
+	// step: we try and connect to a backend
+	outConn, err := r.TryConnect()
+	if err != nil {
+		glog.Errorf("Failed to connect to endpoint, service: %s, error: %s", r.Service, err)
 		return err
-	} else {
-		/* step: we spin up to async routines to handle the byte transfer */
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go TransferTCPBytes("->", inConn, outConn, &wg)
-		go TransferTCPBytes("<-", outConn, inConn, &wg)
-		wg.Wait()
-		inConn.Close()
-		outConn.Close()
 	}
+
+	// step: we spin up to async routines to handle the byte transfer
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go TransferTCPBytes("->", (incoming.Connection).(*net.TCPConn), outConn, &wg)
+	go TransferTCPBytes("<-", outConn, (incoming.Connection).(*net.TCPConn), &wg)
+	wg.Wait()
+	outConn.Close()
+
 	return nil
 }
 
 func (r *Proxier) TryConnect() (backend *net.TCPConn, err error) {
-	/* step: attempt to connect to endpoint */
+	// step: attempt to connect to endpoint
 	for _, retryTimeout := range endpointDialTimeout {
-		/* step: we get the endpoints for this service */
+		// step: we get the endpoints for this service
 		endpoints, err := r.Endpoints.ListEndpoints()
 		if err != nil {
-			glog.Errorf("Unable to retrieve any endpoints for service: %s, error: %s", r.Service, err)
 			return nil, err
 		}
 
-		/* step: we select an endpoint from the list */
+		// step: we select an endpoint from the list
 		endpoint, err := r.Balancer.SelectEndpoint(endpoints)
 		if err != nil {
-			glog.Errorf("Unable to find an service endpoint for service: %s", r.Service, err)
 			return nil, err
 		}
 
-		/* step: attempt to connect to the backend */
+		// step: attempt to connect to the backend
 		outConn, err := net.DialTimeout("tcp", string(endpoint), retryTimeout*time.Second)
 		if err != nil {
 			glog.Errorf("Failed to connect to backend service: %s, timeout: %d seconds, error: %s", endpoint, retryTimeout, err)
 			continue
 		}
+
 		return outConn.(*net.TCPConn), nil
 	}
 	glog.Errorf("Unable to connect service: %s to any endpoints", r.Service)
