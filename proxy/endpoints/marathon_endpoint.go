@@ -60,9 +60,9 @@ func init() {
 
 type Marathon interface {
 	/* watch for changes on a application */
-	Watch(application_id string, service_port int, channel chan bool)
+	Watch(application_id string, channel chan bool)
 	/* remove me from watching this service */
-	Remove(application_id string, service_port int, channel chan bool)
+	Remove(application_id string, channel chan bool)
 	/* get a list of applications from marathon */
 	Applications() (Applications,error)
 	/* get a specific application */
@@ -201,9 +201,7 @@ func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, reque
 		}
 		/* step: we notify the receiver */
 		for service, listener := range r.services {
-			//glog.Infof("FOUND SERVICE, key: %s, channel: %v", service, listener)
 			if strings.HasPrefix(service, event.AppID) {
-				//glog.Infof("SENDING EVENT, key: %s, channel: %v", service, listener)
 				go func() {
 					listener <- true
 				}()
@@ -212,20 +210,18 @@ func (r *MarathonEndpoint) HandleMarathonEvent(writer http.ResponseWriter, reque
 	}
 }
 
-func (r MarathonEndpoint) Watch(service_name string, service_port int, channel chan bool) {
+func (r MarathonEndpoint) Watch(service_name string, channel chan bool) {
 	r.Lock()
 	defer r.Unlock()
-	service_key := r.GetServiceKey(service_name, service_port)
-	glog.V(10).Infof("Adding a watch for Marathon application: %s:%d", service_name, service_port)
-	r.services[service_key] = channel
+	glog.V(10).Infof("Adding a watch for Marathon application: %s", service_name)
+	r.services[service_name] = channel
 }
 
-func (r MarathonEndpoint) Remove(service_name string, service_port int, channel chan bool) {
+func (r MarathonEndpoint) Remove(service_name string, channel chan bool) {
 	r.Lock()
 	defer r.Unlock()
-	service_key := r.GetServiceKey(service_name, service_port)
-	glog.V(10).Infof("Deleting the watch for Marathon application: %s:%d", service_name, service_port)
-	delete(r.services,service_key)
+	glog.V(10).Infof("Deleting the watch for Marathon application: %s", service_name)
+	delete(r.services, service_name)
 }
 
 func (r *MarathonEndpoint) Application(id string) (Application, error) {

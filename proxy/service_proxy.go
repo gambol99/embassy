@@ -101,7 +101,7 @@ func (r *Proxier) GetService() services.Service {
 func (r *Proxier) ProcessEvents() {
 	glog.V(4).Infof("Starting to handle event for service proxy: %s", r)
 	/* step: add a event listener to endpoints */
-	endpointsChannel := make(endpoints.EndpointEventChannel, 0)
+	endpointsChannel := make(endpoints.EndpointEventChannel, 10)
 	r.Endpoints.AddEventListener(endpointsChannel)
 	go func() {
 		defer close(endpointsChannel)
@@ -112,12 +112,12 @@ func (r *Proxier) ProcessEvents() {
 				r.Endpoints.Close()
 				return
 			case <-endpointsChannel:
-				glog.V(4).Infof("Endpoints for service: %s updated, synchronizing endpoints", r.Service)
-				if endpoints, err := r.Endpoints.ListEndpoints(); err != nil {
-					glog.Errorf("Unable to push endpoint changes upstream to loadbalancer, error: %s", err)
-				} else {
-					r.Balancer.UpdateEndpoints(endpoints)
-				}
+				//glog.V(4).Infof("Endpoints for service: %s updated, synchronizing endpoints", r.Service)
+				//if endpoints, err := r.Endpoints.ListEndpoints(); err != nil {
+				//		glog.Errorf("Unable to push endpoint changes upstream to loadbalancer, error: %s", err)
+				//} else {
+				//	r.Balancer.UpdateEndpoints(endpoints)
+				//}
 			}
 		}
 	}()

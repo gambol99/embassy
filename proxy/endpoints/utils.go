@@ -23,6 +23,8 @@ import (
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
 	"github.com/golang/glog"
+	"unsafe"
+	"sync/atomic"
 )
 
 const (
@@ -34,10 +36,12 @@ const (
 func NewEndpointsService(discovery string, si services.Service) (EndpointsStore, error) {
 	/* step: check the cache first of all */
 	glog.V(4).Infof("Initializing endpoints store for service: %s", si)
-	/* step: check if the store provider is supported */
+	// step: check if the store provider is supported
 	endpoints := new(EndpointsStoreService)
 	endpoints.Service = si
-	endpoints.Endpoints = nil
+	// Set to empty
+	empty := make([]Endpoint, 0)
+	atomic.StorePointer(&endpoints.Endpoints,unsafe.Pointer(&empty))
 	endpoints.Listeners = make([]EndpointEventChannel, 0)
 	endpoints.Shutdown = make(utils.ShutdownSignalChannel)
 

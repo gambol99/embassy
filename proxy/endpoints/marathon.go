@@ -188,7 +188,7 @@ func (r *MarathonClient) GetServicePortFromApplication(service *services.Service
 
 func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel, error) {
 	/* channel to send back events to the endpoints store */
-	endpointUpdateChannel := make(EndpointEventChannel, 5)
+	endpointUpdateChannel := make(EndpointEventChannel, 20)
 	/*
 		step: validate the service definition, due to the internal representation of applications in
 		marathon, the service port *MUST* is specified in the service definition i.e. BACKEND_FE=/prod/frontend/80;80
@@ -199,7 +199,7 @@ func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel,
 	} else {
 		/* step: register for the service */
 		glog.V(5).Infof("Registering for marathon events for service: %s:%d", name, port)
-		marathon.Watch(name, port, r.update_channel)
+		marathon.Watch(name, r.update_channel)
 		/* step: wait for events from the service */
 		go func() {
 			for {
@@ -207,7 +207,7 @@ func (r *MarathonClient) Watch(service *services.Service) (EndpointEventChannel,
 				case <- r.update_channel:
 					endpointUpdateChannel <- EndpointEvent{string(service.ID),ENDPOINT_CHANGED,*service}
 				case <- r.shutdown_channel:
-					marathon.Remove(name, port, r.update_channel)
+					marathon.Remove(name, r.update_channel)
 				}
 			}
 		}()
