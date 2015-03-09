@@ -27,7 +27,10 @@ clean:
 	rm -rf ./release
 	go clean
 
-release:
+changelog: release
+	git log $(shell git tag | tail -n1)..HEAD --no-merges --format=%B > changelog 
+
+release: clean build changelog
 	rm -rf release
 	mkdir -p release
 	GOOS=linux godep go build -o release/$(NAME)
@@ -36,6 +39,5 @@ release:
 	cd release && gzip -c embassy > $(NAME)_$(VERSION)_darwin_$(HARDWARE).gz
 	rm release/$(NAME)
 
-changelog: release
-	git log $(shell git tag | tail -n1)..HEAD --no-merges --format=%B > release/changelog
+
 
