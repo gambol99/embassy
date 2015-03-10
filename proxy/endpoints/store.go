@@ -22,6 +22,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
 
@@ -75,13 +76,12 @@ func (ds EndpointsStoreService) Close() {
 }
 
 func (ds *EndpointsStoreService) Synchronize() error {
-	glog.V(5).Infof("Synchronize the endpoints for service: %s", ds.service)
 	endpoints, err := ds.provider.List(&ds.service)
 	if err != nil {
 		glog.Errorf("Attempt to resynchronize the endpoints failed for service: %s, error: %s", ds.service, err)
 		return errors.New("Failed to resync the endpoints")
 	}
-	glog.V(3).Infof("Service: %s, endpoints: %s", ds.service, endpoints)
+
 	/* step: we register any new endpoints - using the endpoint id as key into the map */
 	atomic.StorePointer(&ds.endpoints, unsafe.Pointer(&endpoints))
 	return nil
@@ -91,6 +91,7 @@ func (ds *EndpointsStoreService) Synchronize() error {
 func (ds *EndpointsStoreService) WatchEndpoints() {
 	glog.V(3).Infof("Watching for changes on service: %s", ds.service)
 	go func() {
+
 		glog.V(3).Infof("Starting to watch endpoints for service: %s, path: %s", ds.service, ds.service.Name)
 		watchChannel, err := ds.provider.Watch(&ds.service)
 		if err != nil {
@@ -98,28 +99,26 @@ func (ds *EndpointsStoreService) WatchEndpoints() {
 			return
 		}
 
-		// A timer for debugging purposes, dump the endpoints
-		timer  := time.NewTicker(10 * time.Second)
-		resync := time.NewTicker(60 * time.Second)
+		// step: setting the timer for forced resync of endpoints
+		resync_timer := time.NewTicker(time.Duration(config.Options.Forced_resync) * time.Second)
 
 		// step: we simply wait for updates from the watcher or an kill switch
 		for {
 			select {
-			// We've received a change in the endpoints, lets resync
+			// We've received a change in the endpoints, lets re-sync
 			case update := <-watchChannel:
+				glog.V(3).Infof("Service: %s changed, updating the endpoints now", ds.service)
 				ds.Synchronize()
 				ds.Upstream(update)
 
-			case <-resync.C:
+			// the endpoint re-sync timer has kicked off
+			case <-resync_timer.C:
+				glog.V(6).Infof("Forcing an update of the endpoints now, service: %s", ds.service)
 				ds.Synchronize()
-
-			// Dump the endpoints for debugging purposes
-			case <-timer.C:
-				endpoints, _ := ds.ListEndpoints()
-				glog.V(4).Infof("services: %s, endpoints: %s", ds.service, endpoints)
 
 			// Shutdown the watcher
 			case <-ds.shutdown:
+				glog.Infof("Shutting for the endpoints service for service: %s", ds.service)
 				ds.provider.Close()
 				return
 			}

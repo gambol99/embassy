@@ -27,6 +27,7 @@ const (
 	DEFAULT_SERVICE_PREFIX = "BACKEND_"
 	DEFAULT_FILTER_HEALTH  = true
 	DEFAULT_DOCKER_SOCKET  = "unix:///var/run/docker.sock"
+	DEFAULT_FORCED_RESYNC  = 120
 )
 
 var Options struct {
@@ -46,6 +47,8 @@ var Options struct {
 	Provider string
 	/* the service options, used by the static provider */
 	Services string
+	/* the time in seconds to perform a forced resync of the endpoints */
+	Forced_resync int
 }
 
 func init() {
@@ -57,4 +60,5 @@ func init() {
 	flag.StringVar(&Options.Socket, "docker", DEFAULT_DOCKER_SOCKET, "the location of the docker socket")
 	flag.StringVar(&Options.Provider, "provider", "docker", "the services provider to use, either docker or static")
 	flag.StringVar(&Options.Services, "services", "", "a comma seperated list of services i.e frontend;80,mysql;3306 etc")
+	flag.IntVar(&Options.Forced_resync, "resync", DEFAULT_FORCED_RESYNC, "the amount of time in seconds to perform a resync of endpoints per service")
 }
