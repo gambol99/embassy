@@ -5,6 +5,8 @@
 #
 #  vim:ts=2:sw=2:et
 #
+set -o pipefail
+
 PROXY_IP="172.17.42.1"
 PROXY_PORT="9999"
 NETWORK_MODE="DNAT"
@@ -14,6 +16,14 @@ IPTABLES="/sbin/iptables"
 IPTABLES_RULE_COMMENT="embassy_redirection"
 IPTABLES_DNAT_RULE="-t nat -I PREROUTING -p tcp --dst ${PROXY_IP} -m comment --comment "${IPTABLES_RULE_COMMENT}" -j DNAT --to ${PROXY_IP}:${PROXY_PORT}"
 IPTABLES_REDIRECT_RULE="-t nat -I PREROUTING -p tcp --src 0/0 -m comment --comment "${IPTABLES_RULE_COMMENT}" -j REDIRECT --to-ports ${PROXY_PORT}"
+
+# IPTABLES SETTINGS - you might wanna change this
+NF_CONNECTION_MAX="/proc/sys/net/netfilter/nf_conntrack_max"
+NF_CONNECTION_TIMEOUT="/proc/sys/net/netfilter/nf_conntrack_tcp_timeout_time_wait"
+NF_CONNECTION_HASHSIZE="/sys/module/nf_conntrack/parameters/hashsize"
+IPTABLES_TRACK_MAX_CONNECTIONS=${IPTABLES_TRACK_MAX_CONNECTIONS:-""}
+IPTABLES_TRACK_TIMEOUT=${IPTABLES_TRACK_TIMEOUT:-""}
+IPTABLES_TRACK_HASHSIZE=${IPTABLES_TRACK_HASHSIZE:-""}
 
 annonce() {
   echo "** $@"
@@ -61,6 +71,24 @@ iptables_add_rule() {
   esac
 }
 
+sysctl() {
+    PARAM=$1
+    VALUE=$2
+    if [ -f $PARAM ]; then
+      annonce "Setting the Netfilter parameter: $PARAM = $VALUE"
+      echo "$VALUE" > $PARAM 2>/dev/null
+      [ $? -ne 0 ] && failed "failed to set the parameter: ${PARAM}"
+    else
+      annonce "Unable to set the sysctl param: ${PARAM}, the parameter does not exist"
+    fi
+}
+
+iptables_settings() {
+    [ -n "$IPTABLES_TRACK_MAX_CONNECTIONS" ] && sysctl $NF_CONNECTION_MAX $IPTABLES_TRACK_MAX_CONNECTIONS
+    [ -n "$IPTABLES_TRACK_TIMEOUT"         ] && sysctl $NF_CONNECTION_TIMEOUT $IPTABLES_TRACK_TIMEOUT
+    [ -n "$IPTABLES_TRACK_TIMEOUT"         ] && sysctl $NF_CONNF_CONNECTION_HASHSIZE $IPTABLES_TRACK_TIMEOUT
+}
+
 iptables_show() {
   annonce "Iptables Rules"
   ${IPTABLES} -t nat -L ${NETWORK_CHIAN} --line-numbers
@@ -68,6 +96,8 @@ iptables_show() {
 
 setup_iptables() {
   annonce "Setting up the iptables rule set for embassy proxy"
+  # step: set the parameters
+  iptables_settings
   # step: we check if the rule exists
   if iptables_rule_exists; then
     # step: we delete the rule

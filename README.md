@@ -249,3 +249,35 @@ The service definitions for service binding is somewhat different when using Mar
         BACKEND_FRONTEND_HTTP=/product/web/frontend/80;8080
 
         # i.e. map me 172.17.42.1:8080 -> |ENDPOINTS|:80
+
+### **IPTables Notes**
+-------
+
+Embassy uses iptable's to perform dnating or port redirection (depending on setup) into the proxy. If you have a very high throughput of connection's per seconds its possible to exhaust the connection tracking table. Albeit, granted this is highly unlikely, as while you might be running X thousand db queries, your probably doing it over a dozen or so actual connections being pooled. I've only time I've hit the limits is while bench testing and pushing 7500+ connections per second for 10 minutes. I'll implement a rate limiter at some point.
+
+    core@core101 /etc $ dmesg
+    [73831.900232] nf_conntrack: table full, dropping packet
+    [73831.903026] nf_conntrack: table full, dropping packet
+
+    core@core101 /etc $ cat lsb-release
+    DISTRIB_ID=CoreOS
+    DISTRIB_RELEASE=557.2.0
+    DISTRIB_CODENAME="Red Dog"
+    DISTRIB_DESCRIPTION="CoreOS 557.2.0"
+
+    core@core101 ~ $ cat /proc/sys/net/netfilter/nf_conntrack_tcp_timeout_time_wait
+    120
+    core@core101 /etc $ cat /proc/sys/net/netfilter/nf_conntrack_max
+    65536
+    core@core101 /etc $ cat /sys/module/nf_conntrack/parameters/hashsize
+    16384
+
+    # IPTABLES SETTINGS - you might wanna change this using the docker environment variables
+
+    NF_CONNECTION_MAX="/proc/sys/net/netfilter/nf_conntrack_max"
+    NF_CONNECTION_TIMEOUT="/proc/sys/net/netfilter/nf_conntrack_tcp_timeout_time_wait"
+    NF_CONNECTION_HASHSIZE="/sys/module/nf_conntrack/parameters/hashsize"
+    # i.e we leave them unchanged unless you explicitly set them
+    IPTABLES_TRACK_MAX_CONNECTIONS=${IPTABLES_TRACK_MAX_CONNECTIONS:-""}
+    IPTABLES_TRACK_TIMEOUT=${IPTABLES_TRACK_TIMEOUT:-""}
+    IPTABLES_TRACK_HASHSIZE=${IPTABLES_TRACK_HASHSIZE:-""} ( on x64 = (2 * pointer_size) * size
