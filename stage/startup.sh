@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 #   Author: Rohith (gambol99@gmail.com)
 #   Date: 2014-11-21 16:48:39 +0000 (Fri, 21 Nov 2014)
@@ -72,21 +72,21 @@ iptables_add_rule() {
 }
 
 set_sysctl() {
-    PARAM=$1
-    VALUE=$2
-    if [ -f $PARAM ]; then
-      annonce "Setting the system parameter: $PARAM = $VALUE"
-      sysctl -w ${VALUE}=${PARAM}
-      [ $? -ne 0 ] && failed "failed to set the parameter: ${PARAM}"
-    else
-      annonce "Unable to set the sysctl param: ${PARAM}, the parameter does not exist"
-    fi
+  PARAM=$1
+  VALUE=$2
+  if [ -f $PARAM ]; then
+    annonce "Setting the system parameter: $PARAM = $VALUE"
+    sysctl -w ${PARAM}=${VALUE}
+    [ $? -ne 0 ] && failed "failed to set the parameter: ${PARAM}"
+  else
+    annonce "Unable to set the sysctl param: ${PARAM}, the parameter does not exist"
+  fi
 }
 
 iptables_settings() {
-    [ -n "$IPTABLES_TRACK_MAX_CONNECTIONS" ] && set_sysctl $NF_CONNECTION_MAX $IPTABLES_TRACK_MAX_CONNECTIONS
-    [ -n "$IPTABLES_TRACK_TIMEOUT"         ] && set_sysctl $NF_CONNECTION_TIMEOUT $IPTABLES_TRACK_TIMEOUT
-    [ -n "$IPTABLES_TRACK_TIMEOUT"         ] && set_sysctl $NF_CONNF_CONNECTION_HASHSIZE $IPTABLES_TRACK_TIMEOUT
+  [ -n "$IPTABLES_TRACK_MAX_CONNECTIONS" ] && set_sysctl $NF_CONNECTION_MAX $IPTABLES_TRACK_MAX_CONNECTIONS
+  [ -n "$IPTABLES_TRACK_TIMEOUT"         ] && set_sysctl $NF_CONNECTION_TIMEOUT $IPTABLES_TRACK_TIMEOUT
+  [ -n "$IPTABLES_TRACK_TIMEOUT"         ] && set_sysctl $NF_CONNF_CONNECTION_HASHSIZE $IPTABLES_TRACK_TIMEOUT
 }
 
 iptables_show() {

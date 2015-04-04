@@ -4,14 +4,12 @@
 #
 #  vim:ts=2:sw=2:et
 #
-FROM gliderlabs/alpine
+FROM centos:centos7
 MAINTAINER <gambol99@gmail.com>
 
 ADD ./stage/embassy /bin/embassy
 ADD ./stage/startup.sh ./startup.sh
 RUN chmod +x /startup.sh && \
-    chmod +x /bin/embassy && \
-    /usr/sbin/apk-install bash && \
-    /usr/sbin/apk-install iptables
+    chmod +x /bin/embassy 
 
 ENTRYPOINT [ "/startup.sh" ]
