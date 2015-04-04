@@ -18,8 +18,8 @@ IPTABLES_DNAT_RULE="-t nat -I PREROUTING -p tcp --dst ${PROXY_IP} -m comment --c
 IPTABLES_REDIRECT_RULE="-t nat -I PREROUTING -p tcp --src 0/0 -m comment --comment "${IPTABLES_RULE_COMMENT}" -j REDIRECT --to-ports ${PROXY_PORT}"
 
 # IPTABLES SETTINGS - you might wanna change this
-NF_CONNECTION_MAX="/proc/sys/net/netfilter/nf_conntrack_max"
-NF_CONNECTION_TIMEOUT="/proc/sys/net/netfilter/nf_conntrack_tcp_timeout_time_wait"
+NF_CONNECTION_MAX="net.netfilter.nf_conntrack_max"
+NF_CONNECTION_TIMEOUT="net.netfilter.nf_conntrack_tcp_timeout_time_wait"
 NF_CONNECTION_HASHSIZE="/sys/module/nf_conntrack/parameters/hashsize"
 IPTABLES_TRACK_MAX_CONNECTIONS=${IPTABLES_TRACK_MAX_CONNECTIONS:-""}
 IPTABLES_TRACK_TIMEOUT=${IPTABLES_TRACK_TIMEOUT:-""}
@@ -74,19 +74,15 @@ iptables_add_rule() {
 set_sysctl() {
   PARAM=$1
   VALUE=$2
-  if [ -f $PARAM ]; then
-    annonce "Setting the system parameter: $PARAM = $VALUE"
-    sysctl -w ${PARAM}=${VALUE}
-    [ $? -ne 0 ] && failed "failed to set the parameter: ${PARAM}"
-  else
-    annonce "Unable to set the sysctl param: ${PARAM}, the parameter does not exist"
-  fi
+  annonce "Setting the system parameter: $PARAM = $VALUE"
+  sysctl -w ${PARAM}=${VALUE}
+  [ $? -ne 0 ] && annonce "failed to set the parameter: ${PARAM}"
 }
 
 iptables_settings() {
   [ -n "$IPTABLES_TRACK_MAX_CONNECTIONS" ] && set_sysctl $NF_CONNECTION_MAX $IPTABLES_TRACK_MAX_CONNECTIONS
   [ -n "$IPTABLES_TRACK_TIMEOUT"         ] && set_sysctl $NF_CONNECTION_TIMEOUT $IPTABLES_TRACK_TIMEOUT
-  [ -n "$IPTABLES_TRACK_TIMEOUT"         ] && set_sysctl $NF_CONNF_CONNECTION_HASHSIZE $IPTABLES_TRACK_TIMEOUT
+  #[ -n "$IPTABLES_TRACK_HASHSIZE"         ] && set_sysctl $NF_CONNF_CONNECTION_HASHSIZE $IPTABLES_TRACK_HASHSIZE
 }
 
 iptables_show() {
