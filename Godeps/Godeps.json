@@ -1,15 +1,11 @@
 {
 	"ImportPath": "github.com/gambol99/embassy",
-	"GoVersion": "go1.3.3",
+	"GoVersion": "go1.4.2",
 	"Deps": [
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
 			"Comment": "v0.6.0-5-gf92b795",
 			"Rev": "f92b7950b372b1db80bd3527e4d40e42555fe6c2"
-		},
-		{
-			"ImportPath": "github.com/armon/consul-api",
-			"Rev": "dcfedd50ed5334f96adee43fc88518a4f095e15c"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/etcdserver/etcdhttp/httptypes",
@@ -73,6 +69,11 @@
 		{
 			"ImportPath": "github.com/golang/glog",
 			"Rev": "44145f04b68cf362d9c4df2182967c2275eaefed"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/consul/api",
+			"Comment": "v0.5.0-131-g0ad25ec",
+			"Rev": "0ad25ece4364a5c2e387db15f8bc3bad06c34f8a"
 		}
 	]
 }
