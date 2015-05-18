@@ -8,16 +8,6 @@
 			"Rev": "f92b7950b372b1db80bd3527e4d40e42555fe6c2"
 		},
 		{
-			"ImportPath": "github.com/coreos/etcd/etcdserver/etcdhttp/httptypes",
-			"Comment": "v2.0.4-247-g7e7bc76",
-			"Rev": "7e7bc76038300b7dfed39d2ddc5edaab3af0da5a"
-		},
-		{
-			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v2.0.4-247-g7e7bc76",
-			"Rev": "7e7bc76038300b7dfed39d2ddc5edaab3af0da5a"
-		},
-		{
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
 			"Comment": "v0.4.6-8-g60e12ca",
 			"Rev": "60e12cac3db8ffce00b576b4af0e7b0a968f1003"
@@ -54,11 +44,6 @@
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/units",
-			"Comment": "v1.4.1-2334-g58390b6",
-			"Rev": "58390b60876412a70a72ee18cd85874213d73257"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar",
 			"Comment": "v1.4.1-2334-g58390b6",
 			"Rev": "58390b60876412a70a72ee18cd85874213d73257"
 		},
