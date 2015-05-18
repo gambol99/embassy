@@ -117,9 +117,12 @@ case $1 in
 esac
 
 # step; we first need to setup iptables
-setup_iptables
-# step: for debugging purposes lets show the table
-iptables_show
-# step: lets start the embassy proxy
-annonce "Starting the Embassy Services Proxy"
-/bin/embassy -logtostderr=true $@
+if [ -z "$NETWORK_MODE" ]; then
+  setup_iptables
+  # step: for debugging purposes lets show the table
+  iptables_show
+  # step: lets start the embassy proxy
+  annonce "Starting the Embassy Services Proxy"
+fi
+
+./embassy -logtostderr=true $@

@@ -7,10 +7,10 @@
 FROM gliderlabs/alpine:3.1
 MAINTAINER <gambol99@gmail.com>
 
-ADD ./stage/embassy /bin/embassy
+ADD ./stage/embassy /embassy
 ADD ./stage/startup.sh ./startup.sh
 RUN chmod +x /startup.sh && \
-    chmod +x /bin/embassy && \
+    chmod +x /embassy && \
     apk --update add iptables bash 
 
 ENTRYPOINT [ "/startup.sh" ]
