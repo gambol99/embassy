@@ -87,7 +87,7 @@ func NewProxyService(store services.ServiceStore) (Proxy, error) {
 
 	/* step: bind to the interface */
 	glog.Infof("Binding proxy service to interface: %s:%d", interface_address, config.Options.Proxy_port)
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", interface_address, config.Options.Proxy_port))
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", interface_address))
 	if err != nil {
 		glog.Errorf("Failed to bind the proxy service to interface, error: %s", err)
 		return nil, err
