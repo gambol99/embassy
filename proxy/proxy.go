@@ -68,18 +68,26 @@ type ProxyConnection struct {
 
 /* Create the proxy service - the main routine for handling requests and events */
 func NewProxyService(store services.ServiceStore) (Proxy, error) {
+	var err error
 	glog.Infof("Initializing the ProxyService")
+	// the ip address we should be listening on
+	interface_address := ""
 
-	/* step: we need to grab the ip address of the interface to bind to */
-	ipaddress, err := utils.GetLocalIPAddress(config.Options.Proxy_interface)
-	if err != nil {
-		glog.Error("Unable to get the local ip address from interface: %s, error: %s", config.Options.Proxy_interface, err)
-		return nil, err
+	// step: if we have a ip address to listen on, we take that as the priority
+	if config.Options.Proxy_listen != "" {
+		interface_address = config.Options.Proxy_listen
+	} else {
+		// step: we need to grab the ip address of the interface to bind to
+		interface_address, err = utils.GetLocalIPAddress(config.Options.Proxy_interface)
+		if err != nil {
+			glog.Error("Unable to get the local ip address from interface: %s, error: %s", config.Options.Proxy_interface, err)
+			return nil, err
+		}
 	}
 
 	/* step: bind to the interface */
-	glog.Infof("Binding proxy service to interface: %s:%d", ipaddress, config.Options.Proxy_port)
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Options.Proxy_port))
+	glog.Infof("Binding proxy service to interface: %s:%d", interface_address, config.Options.Proxy_port)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", interface_address))
 	if err != nil {
 		glog.Errorf("Failed to bind the proxy service to interface, error: %s", err)
 		return nil, err

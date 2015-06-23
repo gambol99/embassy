@@ -23,6 +23,7 @@ import (
 const (
 	DEFAULT_PROXY_PORT     = 9999
 	DEFAULT_INTERFACE      = "eth0"
+	DEFAULT_IP_LISTEN      = ""
 	DEFAULT_DISCOVERY_URI  = "consul://127.0.0.1:8500"
 	DEFAULT_SERVICE_PREFIX = "BACKEND_"
 	DEFAULT_FILTER_HEALTH  = true
@@ -33,6 +34,8 @@ const (
 var Options struct {
 	/* the interface the proxy should be listening */
 	Proxy_interface string
+	/* the default ip address to listen on, this take priority over the interface above */
+	Proxy_listen string
 	/* the proxy port */
 	Proxy_port int
 	/* the discovery provider for service */
@@ -53,6 +56,7 @@ var Options struct {
 
 func init() {
 	flag.StringVar(&Options.Proxy_interface, "interface", DEFAULT_INTERFACE, "the interface to take the proxy address from")
+	flag.StringVar(&Options.Proxy_listen, "address", DEFAULT_IP_LISTEN, "the ip address we should be listening on (note: this takes priority over the interface option)")
 	flag.IntVar(&Options.Proxy_port, "port", DEFAULT_PROXY_PORT, "the tcp port which the proxy should listen on")
 	flag.StringVar(&Options.Discovery_url, "discovery", DEFAULT_DISCOVERY_URI, "the discovery backend to pull the services from")
 	flag.StringVar(&Options.Service_prefix, "prefix", DEFAULT_SERVICE_PREFIX, "the prefix used to distinguish a backend service")
