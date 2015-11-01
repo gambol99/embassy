@@ -42,7 +42,7 @@ func NewEndpointsService(discovery string, si services.Service) (EndpointsStore,
 	endpoints.service = si
 	// Set to empty
 	empty := make([]Endpoint, 0)
-	atomic.StorePointer(&endpoints.endpoints,unsafe.Pointer(&empty))
+	atomic.StorePointer(&endpoints.endpoints, unsafe.Pointer(&empty))
 	endpoints.listeners = make([]EndpointEventChannel, 0)
 	endpoints.shutdown = make(utils.ShutdownSignalChannel)
 

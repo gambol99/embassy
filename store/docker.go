@@ -22,10 +22,10 @@ import (
 	"strings"
 	"sync"
 
+	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/proxy/services"
 	"github.com/gambol99/embassy/utils"
-	docker "github.com/gambol99/go-dockerclient"
 
 	"github.com/golang/glog"
 )

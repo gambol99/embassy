@@ -134,7 +134,7 @@ The descriptor itself has the following format;
 #### **QuickStart**
 -------
 
-Take a look at the documentation showing a [CoreOS](https://github.com/gambol99/embassy/tree/master/docs) usage for a more complete example.
+Take a look at the documentation showing a [CoreOS](https://github.com/gambol99/embassy/tree/master/docs) usage for a more complete 
 
 ### **Discovery Agents**
 -------

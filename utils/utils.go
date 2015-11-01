@@ -24,8 +24,8 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	"time"
 	"math/rand"
+	"time"
 )
 
 const (
@@ -91,7 +91,7 @@ func GetHostname() (string, error) {
 
 func RandomInt(min, max int) int {
 	rand.Seed(time.Now().Unix())
-	return rand.Intn(max - min) + min
+	return rand.Intn(max-min) + min
 }
 
 func Forever(method func()) {

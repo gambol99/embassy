@@ -24,8 +24,8 @@ import (
 	"github.com/gambol99/embassy/config"
 	"github.com/gambol99/embassy/proxy/services"
 
-	consulapi "github.com/hashicorp/consul/api"
 	"github.com/golang/glog"
+	consulapi "github.com/hashicorp/consul/api"
 )
 
 type ConsulClient struct {

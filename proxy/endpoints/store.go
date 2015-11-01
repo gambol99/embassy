@@ -141,4 +141,3 @@ func (ds *EndpointsStoreService) Upstream(event EndpointEvent) {
 		}()
 	}
 }
-
