@@ -34,7 +34,7 @@ func main() {
 	/* step: set max processors */
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	glog.Infof("Starting %s Service Proxy (%s), version: %s", NAME, AUTHOR, VERSION)
+	glog.Infof("Starting %s Service Proxy (%s), version: %s", name, author, version)
 
 	/* step: create the services store */
 	if services, err := store.NewServiceStore(); err != nil {

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 #
 #   Author: Rohith (gambol99@gmail.com)
 #   Date: 2014-11-21 16:48:39 +0000 (Fri, 21 Nov 2014)

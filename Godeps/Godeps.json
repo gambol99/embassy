@@ -1,28 +1,37 @@
 {
 	"ImportPath": "github.com/gambol99/embassy",
-	"GoVersion": "go1.5.1",
+	"GoVersion": "go1.5.2",
 	"Deps": [
 		{
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
-			"Comment": "v0.4.6-8-g60e12ca",
-			"Rev": "60e12cac3db8ffce00b576b4af0e7b0a968f1003"
+			"Comment": "v2.0.0-38-g003851b",
+			"Rev": "003851be7bb0694fe3cc457a49529a19388ee7cf"
 		},
 		{
 			"ImportPath": "github.com/fsouza/go-dockerclient",
-			"Rev": "412c004d923b7b89701e7a1632de83f843657a03"
+			"Rev": "e0d22d30691bcc996eca51f729a4777b8c7dc2a8"
 		},
 		{
 			"ImportPath": "github.com/golang/glog",
-			"Rev": "44145f04b68cf362d9c4df2182967c2275eaefed"
+			"Rev": "fca8c8854093a154ff1eb580aae10276ad6b1b5f"
 		},
 		{
 			"ImportPath": "github.com/hashicorp/consul/api",
-			"Comment": "v0.5.0-131-g0ad25ec",
-			"Rev": "0ad25ece4364a5c2e387db15f8bc3bad06c34f8a"
+			"Comment": "v0.6.0-84-g52ac553",
+			"Rev": "52ac55306137e66cf94d0edf23a8a946812a7d17"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/go-cleanhttp",
+			"Rev": "ce617e79981a8fff618bb643d155133a8f38db96"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/serf/coordinate",
+			"Comment": "v0.7.0-1-g39c7c06",
+			"Rev": "39c7c06298b480560202bec00c2c77e974e88792"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
-			"Rev": "8a2a3a8c488c3ebd98f422a965260278267a0551"
+			"Rev": "646ae4a518c1c3be0739df898118d9bccf993858"
 		}
 	]
 }
