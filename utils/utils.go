@@ -29,16 +29,17 @@ import (
 )
 
 const (
-	PROXY_INTERFACE = "eth0"
+	proxyInterface = "eth0"
 )
 
 type ShutdownSignalChannel chan bool
 type ErrorSignalChannel chan error
 
+// GetLocalIPAddress retrieves the local ip address
 func GetLocalIPAddress(interface_name string) (string, error) {
 	glog.V(5).Infof("Attempting to grab the ipaddress of interface: %s", interface_name)
 	if interface_name == "" {
-		interface_name = PROXY_INTERFACE
+		interface_name = proxyInterface
 	}
 	if interfaces, err := net.Interfaces(); err != nil {
 		glog.Errorf("Unable to get the proxy ip address, error: %s", err)
@@ -65,6 +66,7 @@ func GetLocalIPAddress(interface_name string) (string, error) {
 	return "", errors.New("Unable to determine or find the interface")
 }
 
+// ToInteger converts the string to an integer
 func ToInteger(value string) (int, error) {
 	converted, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
@@ -73,6 +75,7 @@ func ToInteger(value string) (int, error) {
 	return int(converted), nil
 }
 
+// IsPort checks the int is a port
 func IsPort(port int) (bool, error) {
 	if port <= 0 || port >= 65535 {
 		return false, errors.New("Invalid service port; must be between 1 and 65535")
@@ -80,6 +83,7 @@ func IsPort(port int) (bool, error) {
 	return true, nil
 }
 
+// GetHostname retrieves the hostname of the box
 func GetHostname() (string, error) {
 	hostname, err := os.Hostname()
 	if err != nil {

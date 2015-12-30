@@ -17,7 +17,7 @@ limitations under the License.
 package main
 
 const (
-	AUTHOR  = "Rohith Jayawardene"
-	NAME    = "Docker Embassy"
-	VERSION = "0.0.9"
+	author  = "Rohith Jayawardene"
+	name    = "Docker Embassy"
+	version = "1.0.0"
 )
